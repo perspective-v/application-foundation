@@ -1,0 +1,65 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+
+		<!-- Required elements-->
+		<PackageId>PerspectiveV.Web</PackageId>
+		<Title>Perspective-v Web</Title>
+		<Version>10.0.0-alpha.2</Version>
+		<Description>Package has Extensions, Base Classes for MVC, REST and Web based Projects</Description>
+		<Authors>Hassan Taj</Authors>
+		<RepositoryUrl>https://github.com/perspective-v/application-foundation</RepositoryUrl>
+		<PackageIcon>pv_vsex_icon.png</PackageIcon>
+		<Owners>Perspective-V</Owners>
+		<ApplicationIcon>pv_icon.ico</ApplicationIcon>
+
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Update="pv_vsex_icon.png">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+		<None Update="pv_icon.ico">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Remove="pv_icon.ico" />
+		<None Remove="pv_vsex_icon.png" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Include="pv_icon.ico">
+			<PackagePath></PackagePath>
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<Visible>true</Visible>
+			<Pack>true</Pack>
+		</EmbeddedResource>
+		<EmbeddedResource Include="pv_vsex_icon.png">
+			<PackagePath></PackagePath>
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<Visible>true</Visible>
+			<Pack>true</Pack>
+		</EmbeddedResource>
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Asp.Versioning.Mvc" Version="8.1.1" />
+		<PackageReference Include="AWSSDK.S3" Version="4.0.21.2" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Folder Include="Proxies\" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\PerspectiveV.EntityFramework\PerspectiveV.EntityFramework.csproj" />
+	</ItemGroup>
+
+</Project>

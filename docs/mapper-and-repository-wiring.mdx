@@ -1,0 +1,116 @@
+---
+title: Mapper and repository wiring
+description: Connect Mapperly mapping, the EF Core repository, and REST base controllers.
+---
+
+This guide shows the intended application shape for a Mapperly mapper, the EF Core repository, and a Web base controller. The current `AddMapperlyMappers(...)` implementation has a generic registration mismatch; see the [mapping limitation](/docs/common/mapping) before using automatic registration.
+
+## 1. Define a mapper
+
+The repository uses `IProjectionMapper<IdType, EntityType, ModelType>`—three generic parameters. A Mapperly mapper supplies regular mapping functions and expression trees:
+
+```csharp
+using System.Linq.Expressions;
+using Riok.Mapperly.Abstractions;
+
+[Mapper]
+public partial class UserMapper
+{
+    public partial UserModel ToModel(UserEntity entity);
+    public partial UserEntity ToEntity(UserModel model);
+
+    public static partial Expression<Func<UserEntity, UserModel>> ToModelExpression();
+    public static partial Expression<Func<UserModel, UserEntity>> ToEntityExpression();
+}
+```
+
+The consuming application must reference and configure Mapperly's source generator. Keep projection expressions translatable by the selected EF Core provider.
+
+## 2. Register the adapter explicitly
+
+Until the assembly scanner is corrected, create the adapter explicitly. This example assumes a GUID key and does not configure name/value projection:
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using PerspectiveV.Common.Mapper;
+
+services.AddScoped<UserMapper>();
+services.AddScoped<IProjectionMapper<Guid, UserEntity, UserModel>>(provider =>
+{
+    var mapper = provider.GetRequiredService<UserMapper>();
+    return new ProjectionMapper<Guid, UserEntity, UserModel>(
+        mapper.ToModel,
+        mapper.ToEntity,
+        UserMapper.ToModelExpression(),
+        UserMapper.ToEntityExpression(),
+        toNameValueExpression: null);
+});
+```
+
+If a workflow calls `ToNameValueExpression()`, pass a matching expression in place of `null`. The adapter throws `NotImplementedException` when that projection was not provided.
+
+## 3. Implement the repository
+
+```csharp
+using PerspectiveV.Common.Mapper;
+using PerspectiveV.EntityFramework.Repository.Implementation;
+
+public sealed class UserRepository : RepositoryAsync<Guid, UserEntity, UserModel, AppDbContext>
+{
+    public UserRepository(
+        AppDbContext db,
+        IProjectionMapper<Guid, UserEntity, UserModel> mapper)
+        : base(db, mapper)
+    {
+    }
+}
+```
+
+Register the concrete repository in the application's DI container. If using a Web base controller, expose it from the unit of work through a property named exactly after the entity type plus `Service`, for example `UserEntityService`.
+
+## 4. Derive a REST controller
+
+```csharp
+using Microsoft.AspNetCore.Mvc;
+using PerspectiveV.Common.Mapper;
+using PerspectiveV.Web.Rest.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public sealed class UsersController
+    : BaseCrudControllerAsync<Guid, UserEntity, UserModel, AppDbContext, IAppUnitOfWork>
+{
+    public UsersController(
+        IAppUnitOfWork unitOfWork,
+        IProjectionMapper<Guid, UserEntity, UserModel> mapper)
+        : base(unitOfWork, mapper)
+    {
+    }
+}
+```
+
+The base controller supplies CRUD actions. Add application authorization, validation, and API behavior deliberately; `Purge` is a permanent-delete route.
+
+## 5. Project query and update patterns
+
+Use EF Core's async operators on a projected `IQueryable`:
+
+```csharp
+var users = await mapper
+    .ProjectToModel(dbContext.Users.Where(user => user.IsActive))
+    .ToListAsync(cancellationToken);
+```
+
+For an already tracked entity, map into the existing instance before saving:
+
+```csharp
+mapper.UpdateEntity(model, trackedEntity);
+await dbContext.SaveChangesAsync(cancellationToken);
+```
+
+## Troubleshooting
+
+- If assembly registration fails, use explicit adapter registration until `AddMapperlyMappers(...)` is corrected for the three generic type parameters and optional name/value projection.
+- If EF Core cannot translate a projection, remove non-translatable method calls from the expression and test it against the actual provider.
+- If a base controller cannot resolve its repository, check the exact unit-of-work property name: `{EntityType.Name}Service`.
+- If a `Delete` operation should be permanent, use the purge operation deliberately; normal `DeleteAsync` is intended for the `ISoftDeletable` marker contract.

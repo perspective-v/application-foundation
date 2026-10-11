@@ -1,0 +1,29 @@
+---
+title: PerspectiveV.Common
+description: Shared options, identity, mapping, paging, and application utilities.
+---
+
+`PerspectiveV.Common` builds on `PerspectiveV.Primitives` and provides cross-cutting types used by the higher-level EF Core and Web packages. Its project references the `Microsoft.AspNetCore.App` shared framework.
+
+## Source areas
+
+| Namespace or folder | Main contents |
+| --- | --- |
+| `AppConfigurations` | Plain option models for app settings, JWT, CORS, virtual directories, service endpoints, and S3. `Emailing` contains SMTP and email-template settings. |
+| `Identity` | Account claim names, standard role keys, module claim models, permission models, claim-building helpers, and claim permission constants. |
+| `Mapper` | `IProjectionMapper<IdType, TEntity, TModel>`, `ProjectionMapper<...>`, and the Mapperly assembly scanner. |
+| `Paging` | `PagingOptions`, `PagedResult<T>`, search/sort options, attributes, expression providers, and query processors. |
+| `Extensions` | Claim, DI convention, enum, expression, file, number, query, request, session, string, and host-environment helpers. |
+| `Helpers` | Expression construction, object helpers, file I/O, and C# to TypeScript conversion. |
+| `Logging` | File logger/provider and `AddFileLogger(...)`. |
+| `Mailing` | `SMTPMailClient` using `SMTPClientSettings`. |
+| Root namespace | `AppConstants`, `AppException`, and `ErrorCode`. |
+
+## Main workflows
+
+- Use [paging and query options](/docs/common/paging) for allowlisted search and sort expressions.
+- Use the [mapping contract](/docs/common/mapping) to connect entity and model types.
+- Use [configuration and identity](/docs/common/configuration-and-identity) for option shapes and claim conventions.
+- Browse [common utilities](/docs/common/utilities) for helper and extension families.
+
+The options classes are data holders. The consuming application binds them to configuration and decides how to register or use each service.

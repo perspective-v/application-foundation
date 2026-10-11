@@ -1,0 +1,37 @@
+---
+title: Common helpers and extensions
+description: Reference for helper families in PerspectiveV.Common.
+---
+
+## Extensions
+
+The `PerspectiveV.Common.Extensions` namespace groups helpers for:
+
+- Claims and permissions (`ClaimExtensions`).
+- Convention-based scoped DI registration (`ConventionServiceRegistration.AddConventions`).
+- Enum descriptions and values (`EnumExtension`).
+- Expression composition and form-file save/delete operations.
+- Number formatting (`NumberFormatExtensions`).
+- Query pagination and field selection (`QueryExtensions`).
+- Request URI conversion and virtual-directory handling.
+- Session object serialization with `System.Text.Json` (`SessionExtension`).
+- String casing conversions through `StringExtensions.TextCase`.
+- Resolving file paths and saving/deleting files through the host environment (`WebHostEnvironmentExtensions`).
+
+These methods are opt-in helpers; they do not add MVC routes or register the application pipeline by themselves.
+
+## Helpers
+
+The `PerspectiveV.Common.Helpers` namespace contains expression utilities (`ExpressionHelper`), generic object utilities (`ObjectHelpers`), file I/O helpers (`FileIOHelper`), and `CsToTsConverter` for C#-to-TypeScript conversion workflows.
+
+## Logging
+
+`FileLoggerExtensions.AddFileLogger(...)` adds the library's file logger provider and binds `FileLoggerOptions`, which exposes file and folder path settings. The implementation consists of a provider, logger, and options type.
+
+## Mailing
+
+`SMTPMailClient` accepts `SMTPClientSettings` and exposes synchronous `SendEmail(body, subject, recipients...)`.
+
+<Callout type="warn">
+The current SMTP client implementation sets `EnableSsl` to `false` and sends synchronously. Review transport security and credential handling before using it with a production SMTP service; use a TLS-capable mail path when required by the provider.
+</Callout>

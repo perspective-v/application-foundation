@@ -1,0 +1,49 @@
+---
+title: Entity and model patterns
+description: Select and compose the primitive base types in application projects.
+---
+
+## Choose an identifier type
+
+Use the non-generic bases for the default identifier conventions:
+
+```csharp
+using PerspectiveV.Primitives.Types.Entities;
+using PerspectiveV.Primitives.Types.Models;
+
+public sealed class UserEntity : AuditableSoftDeletableNamedEntity
+{
+    public string? Email { get; set; }
+}
+
+public sealed class UserModel : AuditableSoftDeletableNamedModel
+{
+    public string? Email { get; set; }
+}
+```
+
+Use the generic variants when the entity key is not `Guid`:
+
+```csharp
+public sealed class OrderEntity : AuditableEntity<long>
+{
+    public decimal Total { get; set; }
+}
+
+public sealed class OrderModel : AuditableModel<long>
+{
+    public decimal Total { get; set; }
+}
+```
+
+Entity and model types are separate on purpose: entity types represent EF Core persistence, while models represent data passed between application layers. Add application-specific properties to derived classes rather than changing the shared base contracts.
+
+## Use marker interfaces deliberately
+
+`IAuditable` and `ISoftDeletable` are opt-in markers. In the current repository implementation, `RepositoryAsync` fills audit timestamps on create/update and excludes soft-deleted entities from normal queries when the entity implements `ISoftDeletable`. It does not make every entity automatically auditable or soft-deletable.
+
+The generic entity key attributes mark `Id` as a key and request identity generation. Verify provider-specific behavior for non-integer key types in the consuming application's EF model.
+
+## Use case: auditable user records
+
+Use `AuditableSoftDeletableNamedEntity` for a user that needs a name, audit timestamps, and reversible deactivation. Pair it with the matching model base when those fields belong in application workflows. The repository can then populate audit timestamps and hide soft-deleted rows from normal reads; the marker types alone do not implement those behaviors.

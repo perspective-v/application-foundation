@@ -1,0 +1,21 @@
+---
+title: PerspectiveV.EntityFramework
+description: EF Core query helpers and asynchronous repository abstractions.
+---
+
+`PerspectiveV.EntityFramework` depends on `PerspectiveV.Common` and `Microsoft.EntityFrameworkCore` 10.0.6. It provides shared expression helpers plus a generic repository contract and implementation.
+
+## Source areas
+
+- `Extensions/EfCoreExtensions` builds id, soft-delete, app-client, and name/value projection expressions. `EfProperty` creates dynamic EF property expressions.
+- `Extensions/DbContextExtensions` detaches locally tracked entities and clears pending tracked changes.
+- `Repository/Interfaces/IRepositoryAsync<IdType, EntityType, ModelType, DbContextType>` defines async reads, paging, writes, transactions, soft-delete, and purge operations.
+- `Repository/Implementation/RepositoryAsync<...>` implements those operations over a `DbContext` and `IProjectionMapper`.
+- `Repository/Net6` contains an obsolete legacy repository API.
+- `Repository/Net8` contains an obsolete compatibility interface and implementation for string identifiers.
+
+## Data access behavior
+
+The current repository defaults to no-tracking queries, projects through the mapper when a custom selector is not provided, supports includes and predicates, and accepts the Common paging/search/sort options. When an entity implements `ISoftDeletable`, normal reads hide deleted rows unless `getSoftDeleted` is requested.
+
+See [repositories](/docs/entity-framework/repositories) for the current generic base class, operation groups, and deletion semantics. Mapper wiring is described in the [integration guide](/docs/mapper-and-repository-wiring).

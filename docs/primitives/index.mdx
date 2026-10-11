@@ -1,0 +1,45 @@
+---
+title: PerspectiveV.Primitives
+description: Shared entity, model, identity, audit, and deletion contracts.
+---
+
+`PerspectiveV.Primitives` is the base package in the solution dependency graph. It has no project references or explicit NuGet package references in its project file.
+
+Use it when application code needs the shared entity/model shape without bringing in the Common, EF Core, or Web packages.
+
+## Contracts
+
+The `PerspectiveV.Primitives.Types.Interfaces` namespace contains:
+
+- `IEntity<TId>` and `IModel<TId>` for typed identifiers. The non-generic `IEntity` uses `Guid`; the non-generic `IModel` uses nullable `Guid`.
+- `INamedEntity<TId>` and `INamedModel<TId>` for types with a nullable `Name`.
+- `IAuditable` for nullable `CreatedBy`, `CreatedDate`, `UpdatedBy`, and `UpdatedDate` properties.
+- `ISoftDeletable` for the `IsDeleted` flag.
+- `IAppClient` for an optional `AppClientId`.
+
+These interfaces describe a contract; they do not add database filters or populate audit fields by themselves. Higher-level repository and controller code may inspect these markers.
+
+## Entity and model bases
+
+The `Types.Entities` and `Types.Models` namespaces provide matching base-class families. Each family has generic and non-generic forms where applicable:
+
+| Concern | Entity base | Model base |
+| --- | --- | --- |
+| Identifier | `Entity<TId>` | `Model<TId>` |
+| Name | `NamedEntity<TId>` | `NamedModel<TId>` |
+| Audit fields | `AuditableEntity<TId>` | `AuditableModel<TId>` |
+| Soft deletion | `SoftDeletableEntity<TId>` | `SoftDeletableModel<TId>` |
+| Audit + name | `AuditableNamedEntity<TId>` | `AuditableNamedModel<TId>` |
+| Audit + soft delete | `AuditableSoftDeletableEntity<TId>` | `AuditableSoftDeletableModel<TId>` |
+| Name + soft delete | `SoftDeletableNamedEntity<TId>` | `SoftDeletableNamedModel<TId>` |
+| Audit + name + soft delete | `AuditableSoftDeletableNamedEntity<TId>` | `AuditableSoftDeletableNamedModel<TId>` |
+
+The non-generic entity base uses a GUID key marked with the standard `Key` and identity-generation attributes. The generic entity base applies the same attributes to `Id`; the actual key generation behavior still depends on the database provider and entity configuration. Model identifier properties are nullable to support application-facing model workflows.
+
+## Small transport types
+
+- `FileModel` carries `Id`, `Name`, base64 `Data`, and `Extension` strings for file-oriented workflows.
+- `NameValuePair<T>` and `KeyValuePair<T>` carry a display name/key and a typed value.
+- `OrderDirection` defines ascending and descending sort values.
+
+For query projection to `NameValuePair<T>`, see [EF Core extensions](/docs/entity-framework). For paging response metadata, see [Common paging](/docs/common/paging).

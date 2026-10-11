@@ -1,0 +1,45 @@
+---
+title: Architecture and source map
+description: Package responsibilities, project dependencies, and repository layout.
+---
+
+## Package dependency graph
+
+```text
+PerspectiveV.Primitives
+        ↓
+PerspectiveV.Common
+        ↓
+PerspectiveV.EntityFramework
+        ↓
+PerspectiveV.Web
+```
+
+The graph shows project references. `PerspectiveV.Common` also references the `Microsoft.AspNetCore.App` shared framework. The EF Core package references `Microsoft.EntityFrameworkCore` 10.0.6. The Web package references `Asp.Versioning.Mvc` 8.1.1 and `AWSSDK.S3` 4.0.21.2.
+
+All four project files currently set `TargetFramework` to `net10.0`, with nullable reference types and implicit usings enabled.
+
+## What belongs where
+
+| Project | Source areas | Responsibility |
+| --- | --- | --- |
+| `PerspectiveV.Primitives` | `Types/Interfaces`, `Types/Entities`, `Types/Models` | Reusable contracts and base classes for persistence entities and application models. |
+| `PerspectiveV.Common` | `AppConfigurations`, `Identity`, `Mapper`, `Paging`, `Extensions`, `Helpers`, `Logging`, `Mailing` | Cross-cutting application types and utilities shared by higher layers. |
+| `PerspectiveV.EntityFramework` | `Extensions`, `Repository` | EF Core query helpers and async repository contracts/implementations. |
+| `PerspectiveV.Web` | `MVC`, `Rest`, `S3Storage`, `Extensions` | ASP.NET Core controllers, response handling, filters, and S3-backed storage. |
+
+## Solution and repository files
+
+- `PerspectiveVShell.sln` builds the four library projects. Its filename still uses the previous “Shell” name.
+- `pv_vsex_icon.png` is the package icon included by project files.
+- `docs.json` and `index.mdx` define the Mintlify documentation site and its home page.
+
+The root `nuget.config`, `azure-pipelines.yml`, and `publish-nuget-*.bat` files are ignored by Git. A local maintainer checkout may contain them, but they are not part of the repository or a fresh clone. Package-source and publishing setup belongs in the consuming organization's environment.
+
+There is no test project in the solution. The repository currently contains four class library projects only.
+
+## Historical namespace folders
+
+Some repository and controller code remains under namespaces named `Net6` and `Net8`. Those names describe compatibility-era API namespaces; they do not change the projects' current `net10.0` target. The Net6 repository interface and implementation and the Net8 repository interface and implementation carry `[Obsolete]` attributes. New code should start with the generic repository under `PerspectiveV.EntityFramework.Repository.Interfaces` and `PerspectiveV.EntityFramework.Repository.Implementation`.
+
+See each [library overview](/docs/primitives), [Common](/docs/common), [Entity Framework](/docs/entity-framework), and [Web](/docs/web) for APIs and examples.

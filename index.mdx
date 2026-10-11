@@ -1,0 +1,45 @@
+---
+title: Application Foundation
+description: Shared .NET libraries for PerspectiveV applications.
+---
+
+Application Foundation is a set of four NuGet libraries for common application types, cross-cutting helpers, Entity Framework Core data access, and ASP.NET Core web features.
+
+<Cards>
+  <Card title="Get started" href="/docs/getting-started">
+    Install the package you need and build against the current .NET target.
+  </Card>
+  <Card title="Understand the libraries" href="/docs/architecture">
+    See how the four packages fit together and what each one owns.
+  </Card>
+  <Card title="Primitives" href="/docs/primitives">
+    Entity, model, identity, audit, and soft-delete contracts.
+  </Card>
+  <Card title="Common" href="/docs/common">
+    Configuration, identity, paging, mapping, logging, mailing, and utilities.
+  </Card>
+  <Card title="Entity Framework" href="/docs/entity-framework">
+    EF Core helpers and asynchronous repository abstractions.
+  </Card>
+  <Card title="Web" href="/docs/web">
+    ASP.NET Core MVC and REST bases, response types, and S3 storage.
+  </Card>
+</Cards>
+
+## Package set
+
+| Package | Purpose |
+| --- | --- |
+| `PerspectiveV.Primitives` | Entity and model contracts and base types. |
+| `PerspectiveV.Common` | Shared configuration, identity, mapping, paging, helpers, logging, and mailing. |
+| `PerspectiveV.EntityFramework` | EF Core repository contracts, implementations, and extensions. |
+| `PerspectiveV.Web` | MVC and REST base classes, response handling, and S3 storage. |
+
+The projects target `net10.0`. Package versions and dependencies are maintained in each project file. The packages are currently prerelease versions; see [getting started](/docs/getting-started) before installing them.
+
+## Start with a workflow
+
+- For a new consumer, follow [getting started](/docs/getting-started).
+- For the package graph and source layout, read [architecture](/docs/architecture).
+- For Mapperly, repositories, and base controllers, use the [mapper and repository wiring guide](/docs/mapper-and-repository-wiring).
+- For build and package publishing information, see [repository workflow](/docs/repository-workflow).

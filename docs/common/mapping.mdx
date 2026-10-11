@@ -1,0 +1,51 @@
+---
+title: Mapping and projection
+description: Map entity/model instances and project IQueryable queries.
+---
+
+The mapping contract lives in `PerspectiveV.Common.Mapper`. The actual interface in this repository has three generic parameters: `IProjectionMapper<IdType, TEntity, TModel>`.
+
+It covers single and collection mapping, in-place update mapping, expression accessors, query projection, and a name/value projection. The async helper methods on the interface are marked obsolete; compose a projection with EF Core async terminal operators such as `ToListAsync` instead.
+
+## Define a Mapperly mapper
+
+The repository's intended convention is a Mapperly class with entity-to-model and model-to-entity methods plus projection expressions:
+
+```csharp
+using System.Linq.Expressions;
+using Riok.Mapperly.Abstractions;
+
+[Mapper]
+public partial class UserMapper
+{
+    public partial UserModel ToModel(UserEntity entity);
+    public partial UserEntity ToEntity(UserModel model);
+
+    public static partial Expression<Func<UserEntity, UserModel>> ToModelExpression();
+    public static partial Expression<Func<UserModel, UserEntity>> ToEntityExpression();
+}
+```
+
+The Mapperly generator belongs in the consuming application; it is not a package reference in this repository's `PerspectiveV.Common.csproj`.
+
+## Project queries
+
+Use expression projection before materializing EF queries so the query provider can translate the selected fields:
+
+```csharp
+var users = await dbContext.Users
+    .Select(UserMapper.ToModelExpression())
+    .ToListAsync(cancellationToken);
+```
+
+When working through the adapter, use `ProjectToModel(query)` or `ProjectToEntity(query)`. For updates to tracked entities, `UpdateEntity(model, trackedEntity)` copies mapped properties into the existing instance.
+
+## Adapter and registration status
+
+`ProjectionMapper<IdType, TEntity, TModel>` adapts mapping delegates and expression trees to `IProjectionMapper<IdType, TEntity, TModel>`. Its constructor accepts an optional name/value expression; `ToNameValueExpression()` throws if that expression was not supplied.
+
+<Callout type="warn">
+`AddMapperlyMappers(...)` is present, but its current reflection implementation does not match the three-parameter mapper interface: it looks for a one-parameter `ToModel` method, then reads a second parameter, and creates `Func` delegates with an incompatible number of generic arguments. Do not rely on automatic registration until that implementation is corrected and verified. The existing `docs/mapper-and-repository-wiring` page shows manual adapter registration and the repository/controller wiring contract.
+</Callout>
+
+The mapper registration helper also expects a name/value mapping expression even though the interface only makes that feature optional at the adapter constructor. Treat this area as a current implementation limitation, not as a supported registration guarantee.

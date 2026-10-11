@@ -1,0 +1,69 @@
+---
+title: Paging, searching, and sorting
+description: Configure paging and allowlisted query expressions.
+---
+
+The `PerspectiveV.Common.Paging` namespace defines paging metadata and query options. The EF Core repository consumes these types in its `GetAsync` and `PagedAsync` operations.
+
+## Paging
+
+`PagingOptions` has `Offset` and `Limit`. Its validation attributes allow offsets from 0 through 9999 and limits from 1 through 100. `PagedResult<T>` returns `Items`, `ItemsCount`, `TotalItemsCount`, `Offset`, and `Limit`.
+
+```csharp
+var options = new PagingOptions { Offset = 0, Limit = 25 };
+var page = await repository.PagedAsync(pagingOptions: options);
+```
+
+## Allowlist model properties
+
+Search and sort terms are resolved against properties on `TModel` that carry the relevant attributes. The processor then builds a query against a corresponding property on `TEntity`; keep those property names aligned.
+
+```csharp
+using PerspectiveV.Common.Paging.Attributes;
+
+public sealed class UserModel
+{
+    [SearchableContains]
+    [Sortable]
+    public string? Name { get; set; }
+}
+```
+
+`SearchOptions<TEntity, TModel>.Search` accepts expressions in the form `Property operator value`. For the example above, a contains search is `Name contains Ada`. The value is the remainder of the expression after the first two space-separated tokens.
+
+| Attribute | Provider behavior |
+| --- | --- |
+| `[Searchable]` | Default provider; supports `eq`. |
+| `[SearchableContains]` | String-only `contains` comparison, lowercasing both sides for case-insensitive matching. |
+| `[SearchableDecimal]` | Converts decimal search input to an integer-scaled value and supports `gt`, `gte`, `lt`, and `lte` as well as the default equality operator. Match the model/entity storage representation before using it. |
+| `[Sortable]` | Allows a model property as an order term; `Default = true` marks it as a processor default. |
+
+`SearchOptions` and `SortOptions` implement `IValidatableObject`; ASP.NET Core model validation can report terms that are not declared on the model. Applying options directly to an `IQueryable` does not itself run MVC validation, so validate untrusted inputs at the application boundary.
+
+## Example: searchable directory page
+
+For an admin user directory, allow clients to search and sort only the model properties explicitly marked for those operations:
+
+```csharp
+var page = await userRepository.PagedAsync(
+    pagingOptions: new PagingOptions { Offset = 0, Limit = 20 },
+    searchOptions: new SearchOptions<UserEntity, UserModel>
+    {
+        Search = ["Name contains Ada"]
+    },
+    sortOptions: new SortOptions<UserEntity, UserModel>
+    {
+        OrderBy = ["Name desc"]
+    },
+    cancellationToken: cancellationToken);
+```
+
+The `UserModel.Name` property must carry `[SearchableContains]` and `[Sortable]`, and the corresponding entity property must also be named `Name`. Keep the allowed model properties narrow so callers cannot construct arbitrary database queries.
+
+## Sort direction
+
+Sort terms use a property name and an optional direction token. The implementation recognizes `desc` as descending; other or missing tokens select ascending order. The `OrderDirection` enum's description strings are `asce` and `desc`.
+
+## Query-provider behavior
+
+Search and sort processors build expression trees over entity properties. EF Core providers must be able to translate those expressions. Test provider-specific translations, especially for `ToLower()` in contains filters and the decimal-to-scaled-integer convention.

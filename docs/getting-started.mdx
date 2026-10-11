@@ -1,0 +1,57 @@
+---
+title: Getting started
+description: Choose and install the Application Foundation packages.
+---
+
+## Requirements
+
+- .NET 10 SDK for applications consuming these package builds.
+- ASP.NET Core when using `PerspectiveV.Common` or `PerspectiveV.Web`.
+- EF Core when using `PerspectiveV.EntityFramework`.
+- Access to a configured NuGet source that contains the package versions you need.
+
+This repository ignores `nuget.config`, so a local checkout may have feed settings that are not included in a fresh clone. For packages published to Gitea, configure the source with a Gitea account that can read packages:
+
+```powershell
+dotnet nuget add source https://gitea.perspective-v.com/api/packages/perspective-v/nuget/index.json `
+  --name perspective-v `
+  --username "<gitea-username>" `
+  --password "<gitea-token>"
+```
+
+Use a token with `read:package` access for restore. Keep it in your local NuGet configuration or an approved secret store, never in the repository.
+
+## Choose packages
+
+Install only the highest-level package your application needs; project dependencies flow down the package set.
+
+| If you need | Install | Current project version |
+| --- | --- | --- |
+| Shared entity and model contracts | `PerspectiveV.Primitives` | `10.0.0-alpha.1` |
+| Common helpers, paging, or mapping | `PerspectiveV.Common` | `10.0.0-alpha.1` |
+| EF Core repositories | `PerspectiveV.EntityFramework` | `10.0.0-alpha.1` |
+| MVC/REST bases or S3 storage | `PerspectiveV.Web` | `10.0.0-alpha.2` |
+
+Versions above are read from the project files in this repository. Check the package feed for the version actually published there.
+
+## Install a package
+
+For example, to add the Web package to an ASP.NET Core application:
+
+```powershell
+dotnet add package PerspectiveV.Web --version 10.0.0-alpha.2
+```
+
+The project references bring in `PerspectiveV.EntityFramework`, `PerspectiveV.Common`, and `PerspectiveV.Primitives`. If package restore cannot find the requested version, verify that the configured feed contains it and that your NuGet credentials are available to `dotnet restore`.
+
+To use only the core contracts:
+
+```powershell
+dotnet add package PerspectiveV.Primitives --version 10.0.0-alpha.1
+```
+
+## Configure the dependency container
+
+The libraries provide types and abstractions; your application remains responsible for registering its own `DbContext`, repositories, unit of work, AWS client, and application-specific Mapperly classes. There is no single `AddApplicationFoundation()` bootstrap method.
+
+For the package dependency graph and external package references, see [architecture](/docs/architecture). For the current mapping registration caveat, read [mapping](/docs/common/mapping) before relying on automatic mapper discovery.

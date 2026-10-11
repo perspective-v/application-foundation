@@ -1,0 +1,50 @@
+---
+title: File and S3 storage
+description: Configure and use the S3 storage service and upload helpers.
+---
+
+## S3 service
+
+`IS3StorageService` defines operations for upload, read-stream, delete, existence checks, copy, metadata, pre-signed read/upload URLs, listing, multipart uploads, and bucket checks. `S3StorageService` implements it using an injected `IAmazonS3` client and `IOptions<S3BucketOptions>`.
+
+The consumer must configure `S3BucketOptions` and register an AWS `IAmazonS3` client and `IS3StorageService`. This package does not provide a service-registration extension or choose AWS credentials for the application.
+
+## Example: private user upload
+
+For a private profile attachment, upload it under an application-owned key and give an authorized caller a short-lived read URL:
+
+```csharp
+var key = await storage.UploadFileAsync(
+    file,
+    "users/42",
+    cancellationToken);
+
+var downloadUrl = await storage.GetPreSignedUrlAsync(
+    key,
+    expiresInMinutes: 10,
+    cancellationToken: cancellationToken);
+```
+
+Store the returned key with the application record, then create a pre-signed URL only after checking the caller's access. Validate file size and content type in the host application; a pre-signed URL is temporary bearer access.
+
+The `UploadFileAsync` overload with `IUploadProgress` accepts a callback reporting transferred bytes. The current `ProgressStream` reports from write operations; verify callbacks with the AWS client version and real upload path before relying on them for user-visible progress.
+
+## URL access
+
+- `GetPreSignedUrlAsync` creates a time-limited GET URL.
+- `GetPreSignedUploadUrlAsync` creates a time-limited PUT URL.
+- `GetPublicUrl` formats a URL from `ServiceHost`, bucket, and key; it does not make an object public or check the bucket policy.
+
+Keep bucket access policy and URL expiry aligned with your application's authorization model. Treat pre-signed URLs as temporary bearer access.
+
+## Listing and multipart uploads
+
+The current `ListFilesAsync` and `ListFilesDetailedAsync` implementations issue one `ListObjectsV2` request for the prefix. They do not iterate continuation tokens, so add pagination in the consuming workflow when a prefix may contain more objects than one response page. `S3ObjectInfo` currently receives the key, size, and modification time from the list response; its content-type property is not populated there.
+
+Multipart methods expose initiate, upload part, complete, and abort operations. The caller owns part numbering, ETag collection, retry behavior, and cleanup after failures.
+
+## ASP.NET file helpers
+
+`S3StorageIFormFileExtensions` uploads one or many files from an `IFormFileCollection` and returns the generated object key(s). `Common` also contains local file save/delete helpers for `IFormFile` and collections. `MediaSaveOptions` identifies a destination folder and model property for the REST controller's optional media workflow.
+
+The Web base controller selects local versus S3 storage based on `AppSettings.S3Storage.IsEnabled`; it does not replace upload validation, file-size limits, content-type policy, or authorization in the host application.

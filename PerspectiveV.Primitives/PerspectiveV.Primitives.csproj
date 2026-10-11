@@ -1,0 +1,53 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+
+
+		<!-- Required elements -->
+		<PackageId>PerspectiveV.Primitives</PackageId>
+		<Title>Perspective-v Primitives</Title>
+		<Version>10.0.0-alpha.1</Version>
+		<Description>This package contains Primitive Types</Description>
+		<Authors>Hassan Taj</Authors>
+		<RepositoryUrl>https://github.com/perspective-v/application-foundation</RepositoryUrl>
+		<PackageIcon>pv_vsex_icon.png</PackageIcon>
+		<ApplicationIcon>pv_icon.ico</ApplicationIcon>
+		<Owners>Perspective-V</Owners>
+	</PropertyGroup>
+
+
+
+	<ItemGroup>
+		<None Update="pv_icon.ico">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Remove="pv_icon.ico" />
+		<None Remove="pv_vsex_icon.png" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <_DeploymentManifestIconFile Remove="pv_icon.ico" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <EmbeddedResource Include="pv_icon.ico">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </EmbeddedResource>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <EmbeddedResource Include="pv_vsex_icon.png">
+	    <Pack>True</Pack>
+	    <PackagePath>\</PackagePath>
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </EmbeddedResource>
+	</ItemGroup>
+
+</Project>

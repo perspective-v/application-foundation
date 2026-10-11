@@ -1,0 +1,31 @@
+---
+title: Configuration and identity
+description: Shared option models and claim naming helpers.
+---
+
+## Configuration models
+
+The `PerspectiveV.Common.AppConfigurations` namespace contains bindable data models; it does not configure middleware or providers for the application.
+
+| Type | Properties represented |
+| --- | --- |
+| `AppSettings` | App name/code, gateway URL, a secret field, virtual-directory options, S3 options, CORS options, and JWT options. |
+| `ServiceOptions` | Gateway URL, signing key, and JWT options. |
+| `JwtOptions` | Audience(s), issuer, and secret. |
+| `CorsOptions` | Allowed origins, methods, and headers. |
+| `VirtualDirectoryOptions` | Enable flag and directory name. |
+| `S3BucketOptions` | Enable flag, service host, access/secret keys, region, and bucket. |
+
+The `Emailing` namespace adds `SMTPClientSettings`, `EmailTemplateOptions`, and `EmailTemplate`. `EmailTemplateOptions.GetTemplate(key)` looks up a template by its key; the constants class provides forgot-password, reset-password, and email-verification keys.
+
+<Callout type="warn">
+These models contain fields intended for credentials and signing secrets. Bind secrets from a protected configuration provider or environment, and do not commit real values in application settings or documentation.
+</Callout>
+
+## Claim conventions
+
+`PerspectiveV.Common.Identity` defines claim-name constants in `AccountClaimTypes`, built-in role keys in `AccountRoleKeys`, and permission names in `AccountClaimConsts`. The default permission names are `view`, `create`, `edit`, and `delete`.
+
+`ModuleClaimModel` and `ModuleClaimOptions` represent module-level permission claims. `ClaimPermissionBuilder.SetModuleClaims(...)` sets the configured modules, and `GetModuleClaimsList()` returns them. `GetClaimsList()` flattens their claim values. `GenerateOrUpdateClaimKeys(...)` writes a generated C# file under a project identity directory based on the current working directory; call it deliberately from a tool or controlled generation step, not from a web request.
+
+`ClaimExtensions` includes helpers for reading identity data and checking permissions. The Web base controllers use permission claims when executing their MVC actions.

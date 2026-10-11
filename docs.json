@@ -1,0 +1,53 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Application Foundation",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Start here",
+        "root": "index",
+        "pages": [
+          "docs/getting-started",
+          "docs/architecture",
+          "docs/versioning-and-migration",
+          "docs/repository-workflow"
+        ]
+      },
+      {
+        "group": "Libraries",
+        "pages": [
+          {
+            "group": "Primitives",
+            "root": "docs/primitives/index",
+            "pages": ["docs/primitives/entities-and-models"]
+          },
+          {
+            "group": "Common",
+            "root": "docs/common/index",
+            "pages": [
+              "docs/common/paging",
+              "docs/common/mapping",
+              "docs/common/configuration-and-identity",
+              "docs/common/utilities"
+            ]
+          },
+          {
+            "group": "Entity Framework",
+            "root": "docs/entity-framework/index",
+            "pages": ["docs/entity-framework/repositories"]
+          },
+          {
+            "group": "Web",
+            "root": "docs/web/index",
+            "pages": ["docs/web/rest", "docs/web/storage"]
+          }
+        ]
+      },
+      {
+        "group": "Integration guide",
+        "pages": ["docs/mapper-and-repository-wiring"]
+      }
+    ]
+  }
+}

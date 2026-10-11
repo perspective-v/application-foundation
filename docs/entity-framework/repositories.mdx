@@ -1,0 +1,61 @@
+---
+title: Async repositories
+description: Use the current generic EF Core repository contract and implementation.
+---
+
+The current repository types are:
+
+- `IRepositoryAsync<IdType, EntityType, ModelType, DbContextType>` in `PerspectiveV.EntityFramework.Repository.Interfaces`.
+- `RepositoryAsync<IdType, EntityType, ModelType, DbContextType>` in `PerspectiveV.EntityFramework.Repository.Implementation`.
+
+The base class requires an EF Core `DbContext`, an entity class, a model class, and an `IProjectionMapper<IdType, EntityType, ModelType>`.
+
+```csharp
+using PerspectiveV.Common.Mapper;
+using PerspectiveV.EntityFramework.Repository.Implementation;
+
+public sealed class UserRepository : RepositoryAsync<Guid, UserEntity, UserModel, AppDbContext>
+{
+    public UserRepository(
+        AppDbContext db,
+        IProjectionMapper<Guid, UserEntity, UserModel> mapper)
+        : base(db, mapper)
+    {
+    }
+}
+```
+
+The consuming application registers `UserRepository` and exposes it from its unit-of-work type if it uses the Web base controllers. Those controllers look up a property named `{EntityType.Name}Service`, such as `UserEntityService` for `UserEntity`; keep that convention aligned with the actual entity type.
+
+## Operations
+
+| Group | Available behavior |
+| --- | --- |
+| Reads | Lists, generic projected lists, first/single matches, by-id reads, counts, and an entity `IQueryable`. |
+| Paging | Returns `PagedResult<ModelType>` with total and page counts; accepts includes, filters, selectors, search, sort, tracking, and cancellation. |
+| Create/update | Saves one or more entities and returns mapped models. Audit timestamps are set when the entity implements `IAuditable`. |
+| Transactions | Runs an optional callback against the active context in a transaction. |
+| Delete | Sets `IsDeleted = true` for entities implementing `ISoftDeletable`; it does not issue a physical delete. |
+| Purge | Marks matching entities as deleted in EF Core and permanently removes them when saved. Use only when physical deletion is intended. |
+
+Normal reads are no-tracking unless `trackable` is true. For soft-deletable entities, normal reads exclude deleted rows; pass `getSoftDeleted: true` to include them.
+
+## Example: paged application list
+
+Use the repository for a standard paged screen and return both its items and count metadata to the caller:
+
+```csharp
+var page = await userRepository.PagedAsync(
+    pagingOptions: new PagingOptions { Offset = 0, Limit = 20 },
+    cancellationToken: cancellationToken);
+```
+
+This is useful for admin lists and search pages that need stable page boundaries. Add `searchOptions` or `sortOptions` when the model exposes the corresponding allowlisted properties; soft-deleted users remain excluded by default.
+
+<Callout type="warn">
+`DeleteAsync` only changes the `IsDeleted` flag for entities implementing `ISoftDeletable`. For other entity types, the current implementation marks the entry modified without setting a deletion state. `PurgeAsync` is the physical-delete operation. Review the entity marker and desired data-retention behavior before exposing either operation.
+</Callout>
+
+## Legacy interfaces
+
+The `Repository.Net6` contract and implementation are marked obsolete. The `Repository.Net8` string-ID interface and implementation are also marked obsolete in favor of the four-parameter generic types. New application code should use the current generic interface and implementation.

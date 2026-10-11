@@ -1,0 +1,22 @@
+---
+title: PerspectiveV.Web
+description: ASP.NET Core MVC, REST response handling, and S3 storage helpers.
+---
+
+`PerspectiveV.Web` depends on `PerspectiveV.EntityFramework`. Its current project references are `Asp.Versioning.Mvc` 8.1.1 and `AWSSDK.S3` 4.0.21.2. The package targets `net10.0` and provides web-layer types; it does not create a complete application or configure all middleware for you.
+
+## Source areas
+
+| Area | Contents |
+| --- | --- |
+| `MVC` | View-oriented async base controller with list, paging, create/update, delete, mapping, audit, and permission helpers. |
+| `Rest/Controllers` | Generic read, write, and CRUD base controllers plus base request/context helpers. |
+| `Rest/Filters` | Exception and result filters for API response conventions. |
+| `Rest/Responses` | Response envelope types for success, created resources, paging, and errors. |
+| `Rest/Results` | MVC `ObjectResult` wrappers for success, created, and exception responses. |
+| `S3Storage` | S3 service contract and implementation, upload progress callback, file helpers, and object metadata. |
+| `Extensions` | List, reflection, and TempData extensions. |
+
+The package also contains controller classes in `Net6` and `Net8` namespaces. Use the generic controller classes in `PerspectiveV.Web.Rest.Controllers` for new work and check legacy namespace signatures before migrating existing controllers.
+
+Read [REST controllers and responses](/docs/web/rest) for controller assumptions, and [storage](/docs/web/storage) for AWS configuration and file operations.

@@ -1,0 +1,26 @@
+---
+title: Versioning and migration
+description: Current package baseline and migration notes for the v10 package set.
+---
+
+## Current package baseline
+
+All projects target `net10.0`. Current project versions are:
+
+| Package | Version |
+| --- | --- |
+| `PerspectiveV.Primitives` | `10.0.0-alpha.1` |
+| `PerspectiveV.Common` | `10.0.0-alpha.1` |
+| `PerspectiveV.EntityFramework` | `10.0.0-alpha.1` |
+| `PerspectiveV.Web` | `10.0.0-alpha.2` |
+
+The package versions in the project files describe this source checkout. Confirm that the same versions have been published before upgrading a consumer.
+
+## v10 migration notes
+
+- Entity/model mapping is standardized around `IProjectionMapper<IdType, EntityType, ModelType>` and Mapperly-generated mapping methods and expressions. The `AddMapperlyMappers(...)` helper currently has an implementation mismatch; see [mapping](/docs/common/mapping) and use explicit registration only after reviewing that limitation.
+- Runtime AutoMapper references are not present in the current project files. Replace prior package-based mapping configuration with the Mapperly-oriented source mapping contract as appropriate for the consuming app.
+- Shared session serialization and API error logging use `System.Text.Json`. The host application still owns its global JSON formatter and serializer settings.
+- The current EF Core repository API is the four-parameter generic interface and implementation. Net6 and Net8 repository compatibility types are marked obsolete; migrate to `IRepositoryAsync<IdType, EntityType, ModelType, DbContextType>`.
+
+These notes summarize the current source baseline. Review the concrete entity, model, repository, and controller signatures in the consuming application before upgrading; compatibility namespaces in the source do not make the packages target earlier .NET frameworks.

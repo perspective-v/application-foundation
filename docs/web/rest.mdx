@@ -1,0 +1,60 @@
+---
+title: REST controllers and responses
+description: Base REST controllers, response filters, and API response types.
+---
+
+## Base controllers
+
+`PerspectiveV.Web.Rest.Controllers` provides:
+
+- `BaseControllerAsync<DbContextType, UnitOfWorkType>` for shared options, environment, path, and file-upload helpers.
+- `BaseReadOperationsControllerAsync<IdType, EntityType, ModelType, DbContextType, UnitOfWorkType>` for list, by-id, and paged reads.
+- `BaseWriteOperationsControllerAsync<...>` for writes; this older split controller remains in the `Net8` namespace.
+- `BaseCrudControllerAsync<IdType, EntityType, ModelType, DbContextType, UnitOfWorkType>` for combined CRUD routes.
+
+Derive an application controller, provide its route and dependency-injection constructor, and add application-specific authorization and validation. The base types do not replace your application's `DbContext`, repository, or unit-of-work registrations.
+
+The generic read/CRUD controllers resolve a repository from a unit-of-work property named `{EntityType.Name}Service`. For an entity named `UserEntity`, expose the repository through a matching property such as `UserEntityService`. The controllers also require `IProjectionMapper<IdType, EntityType, ModelType>`.
+
+## Example: read-only user API
+
+Use the read base when an application needs the shared list, by-id, and paged endpoints but owns its write workflow separately:
+
+```csharp
+[ApiController]
+[Route("api/users")]
+public sealed class UsersController
+    : BaseReadOperationsControllerAsync<Guid, UserEntity, UserModel, AppDbContext, IAppUnitOfWork>
+{
+    public UsersController(
+        IAppUnitOfWork unitOfWork,
+        IProjectionMapper<Guid, UserEntity, UserModel> mapper)
+        : base(unitOfWork, mapper)
+    {
+    }
+}
+```
+
+The unit of work must expose the repository as `UserEntityService`. A paged request can use query keys such as `pagingOptions.Offset=0`, `pagingOptions.Limit=20`, `searchOptions.Search=Name contains Ada`, and `sortOptions.OrderBy=Name desc`. Add the consuming application's authorization and validation policy before exposing these routes.
+
+The CRUD base exposes `Get`, by-id `Get`, `Paged`, `Post`, `Put`, `Delete`, and `Purge` actions. `Delete` delegates to repository soft-delete semantics; `Purge` delegates to permanent deletion. The base includes local or S3 file-handling paths for `MediaSaveOptions` and the relevant host/S3 services.
+
+<Callout type="warn">
+The current CRUD and write-controller constructors accept `MediaSaveOptions` but do not assign it to the inherited `MediaSaveOptions` property. Their upload actions check that property before saving files, so passing the constructor argument alone does not activate the upload path. Verify or correct this behavior in the implementation before relying on controller-managed uploads.
+</Callout>
+
+## Response envelopes
+
+`PerspectiveV.Web.Rest.Responses` includes `ApiResponse` (status and timestamp), typed and untyped success envelopes, created-resource envelopes, paged success envelopes, key/name-value envelopes, and exception envelopes. `PerspectiveV.Web.Rest.Results` wraps response values in MVC `ObjectResult` instances.
+
+`ApiResponseFilter` wraps successful object results in success/created envelopes and converts problem/exception-like error payloads into exception-detail results. `ApiExceptionFilter` maps selected HTTP/authorization exceptions and returns a generic error message for unexpected production exceptions while logging details.
+
+These filters must be attached to the MVC filter pipeline by the consuming application. Confirm how your existing exception middleware and API versioning are configured before adding global filters, to avoid duplicate handling.
+
+## MVC view controller
+
+The separate `PerspectiveV.Web.MVC.BaseControllerAsync<TEntity, ViewModel, DbContext, UnitOfWork>` is for view-oriented MVC workflows. It supplies index and paging actions, create/update and delete actions, model/entity mapping, audit helpers, and permission checks based on the shared claim conventions. It is distinct from the REST base classes.
+
+## Permission and security boundary
+
+Base MVC actions check the common view/create/edit/delete permission names using entity names. This helper logic is not a substitute for an application-wide authorization policy. Define and test the consuming application's policies, resource naming, and route exposure explicitly.
