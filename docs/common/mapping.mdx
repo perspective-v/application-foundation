@@ -44,8 +44,8 @@ When working through the adapter, use `ProjectToModel(query)` or `ProjectToEntit
 
 `ProjectionMapper<IdType, TEntity, TModel>` adapts mapping delegates and expression trees to `IProjectionMapper<IdType, TEntity, TModel>`. Its constructor accepts an optional name/value expression; `ToNameValueExpression()` throws if that expression was not supplied.
 
-<Callout type="warn">
+<Warning>
 `AddMapperlyMappers(...)` is present, but its current reflection implementation does not match the three-parameter mapper interface: it looks for a one-parameter `ToModel` method, then reads a second parameter, and creates `Func` delegates with an incompatible number of generic arguments. Do not rely on automatic registration until that implementation is corrected and verified. The existing `docs/mapper-and-repository-wiring` page shows manual adapter registration and the repository/controller wiring contract.
-</Callout>
+</Warning>
 
 The mapper registration helper also expects a name/value mapping expression even though the interface only makes that feature optional at the adapter constructor. Treat this area as a current implementation limitation, not as a supported registration guarantee.

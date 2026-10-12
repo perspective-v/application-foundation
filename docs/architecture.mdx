@@ -32,7 +32,7 @@ All four project files currently set `TargetFramework` to `net10.0`, with nullab
 
 - `PerspectiveVShell.sln` builds the four library projects. Its filename still uses the previous “Shell” name.
 - `pv_vsex_icon.png` is the package icon included by project files.
-- `docs.json` and `index.mdx` define the Mintlify documentation site and its home page.
+- `docs/meta.json` orders the portable Markdown and MDX pages for Fumadocs-compatible readers.
 
 The root `nuget.config`, `azure-pipelines.yml`, and `publish-nuget-*.bat` files are ignored by Git. A local maintainer checkout may contain them, but they are not part of the repository or a fresh clone. Package-source and publishing setup belongs in the consuming organization's environment.
 
@@ -42,4 +42,4 @@ There is no test project in the solution. The repository currently contains four
 
 Some repository and controller code remains under namespaces named `Net6` and `Net8`. Those names describe compatibility-era API namespaces; they do not change the projects' current `net10.0` target. The Net6 repository interface and implementation and the Net8 repository interface and implementation carry `[Obsolete]` attributes. New code should start with the generic repository under `PerspectiveV.EntityFramework.Repository.Interfaces` and `PerspectiveV.EntityFramework.Repository.Implementation`.
 
-See each [library overview](/docs/primitives), [Common](/docs/common), [Entity Framework](/docs/entity-framework), and [Web](/docs/web) for APIs and examples.
+See the [Primitives](primitives), [Common](common), [Entity Framework](entity-framework), and [Web](web) overviews for examples. The [API reference](reference) lists public types and members by package.

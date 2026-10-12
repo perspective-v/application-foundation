@@ -52,9 +52,9 @@ var page = await userRepository.PagedAsync(
 
 This is useful for admin lists and search pages that need stable page boundaries. Add `searchOptions` or `sortOptions` when the model exposes the corresponding allowlisted properties; soft-deleted users remain excluded by default.
 
-<Callout type="warn">
+<Warning>
 `DeleteAsync` only changes the `IsDeleted` flag for entities implementing `ISoftDeletable`. For other entity types, the current implementation marks the entry modified without setting a deletion state. `PurgeAsync` is the physical-delete operation. Review the entity marker and desired data-retention behavior before exposing either operation.
-</Callout>
+</Warning>
 
 ## Legacy interfaces
 

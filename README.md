@@ -2,19 +2,7 @@
 
 Shared .NET libraries for PerspectiveV applications: primitives, common application utilities, EF Core data access, and ASP.NET Core web components.
 
-The documentation source is [`index.mdx`](index.mdx), with detailed guides under [`docs/`](docs/). [`docs.json`](docs.json) remains the Mintlify configuration; a Fumadocs local preview in [`docs-site/`](docs-site/) renders the same source files.
-
-## Local documentation preview
-
-Use Node.js 22 or newer, then run:
-
-```powershell
-cd docs-site
-npm ci
-npm run dev
-```
-
-Open the URL printed in the terminal (normally http://127.0.0.1:3000; Next.js chooses another free port if needed). The preview reads the root homepage and `docs/` pages directly, so no duplicate content needs to be maintained.
+The portable documentation source is under [`docs/`](docs/). It is organized as a reader guide and package-by-package API reference, and is formatted for Fumadocs and later import into the Librarian documentation portal. The [guide landing page](docs/index.mdx) links to each section.
 
 ## Packages
 
@@ -27,6 +15,20 @@ Open the URL printed in the terminal (normally http://127.0.0.1:3000; Next.js ch
 
 All projects currently target .NET 10. Package IDs, versions, and direct dependencies are defined in their `.csproj` files.
 
+## Documentation guide
+
+Use the guides in [`docs/`](docs/) to understand how to adopt and maintain these libraries:
+
+- [Getting started](docs/getting-started.mdx) covers package setup and basic integration.
+- [Architecture](docs/architecture.mdx) explains the repository structure and project dependency graph.
+- [Versioning and migration](docs/versioning-and-migration.mdx) describes the current .NET 10 baseline and package versioning.
+- [Repository workflow](docs/repository-workflow.mdx) covers local builds and package publishing.
+- [Mapper and repository wiring](docs/mapper-and-repository-wiring.mdx) connects Mapperly, EF Core repositories, and the Web base classes.
+
+Each library also has an overview and focused guides: [Primitives](docs/primitives/index.mdx) covers entity and model contracts; [Common](docs/common/index.mdx) covers shared configuration, identity, mapping, paging, and utilities; [Entity Framework](docs/entity-framework/index.mdx) covers data access and repositories; and [Web](docs/web/index.mdx) covers MVC, REST, and storage. The API reference under [`docs/reference/`](docs/reference/index.mdx) inventories each package's public types and members, with signatures, source locations, behavior, and relevant implementation caveats.
+
+Navigation is defined by [`docs/meta.json`](docs/meta.json) and the package-level `meta.json` files. The pages use Markdown and static MDX, with source-relative internal links. Librarian resolves those links within its imported documentation tree; a standalone Fumadocs reader should configure `createRelativeLink` for them.
+
 ## Build
 
 ```powershell
@@ -38,6 +40,6 @@ The solution currently contains four class library projects and no test project.
 
 ## Package publishing
 
-Run [the GitHub Actions publishing workflow](.github/workflows/publish-nuget.yml) manually from `main` after updating package versions in the project files. It builds and pushes the packages to the Gitea NuGet registry. Configure the `nuget-publish` GitHub environment with `REGISTRY_USERNAME` and `REGISTRY_PASSWORD` secrets for a Gitea account/token that has package write access.
+The [GitHub Actions publishing workflow](.github/workflows/publish-nuget.yml) runs on pushes to `deploy/feed`. It builds and pushes the packages to the configured Gitea NuGet feed. Configure the `nuget-publish` GitHub environment with `NUGET_FEED_URL`, `REGISTRY_USERNAME`, and `REGISTRY_PASSWORD` secrets.
 
 `nuget.config`, `azure-pipelines.yml`, and `publish-nuget-*.bat` remain ignored local files; the GitHub workflow configures its feed source at run time. Never commit feed credentials.

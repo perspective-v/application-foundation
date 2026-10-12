@@ -1,0 +1,416 @@
+---
+title: PerspectiveV.Web API reference
+description: ASP.NET Core controller bases, REST envelopes and filters, file helpers, and S3 storage APIs.
+full: true
+---
+
+`PerspectiveV.Web` targets `net10.0` and references `PerspectiveV.EntityFramework`, `Asp.Versioning.Mvc` 8.1.1, and `AWSSDK.S3` 4.0.21.2. It supplies reusable ASP.NET Core types; it does not define an application route prefix, register its controllers or filters, configure API versioning, or choose an AWS credential source. Source paths below are relative to the repository root.
+
+## REST controller bases
+
+### Shared `BaseControllerAsync`
+
+Namespace: `PerspectiveV.Web.Rest.Controllers`; source: `PerspectiveV.Web/Rest/Controllers/BaseControllerAsync.cs`.
+
+```csharp
+public abstract class BaseControllerAsync<DBContextType, IUnitOfWorkType> : ControllerBase
+{
+    public BaseControllerAsync(
+        IUnitOfWorkType uow,
+        IOptions<PagingOptions>? defaultPagingOptions = null,
+        IOptions<AppSettings>? appSettingOptions = null,
+        IWebHostEnvironment? env = null);
+
+    public MediaSaveOptions? MediaSaveOptions { get; set; }
+    public S3BucketOptions? S3BucketOptions { get; set; }
+}
+```
+
+The constructor stores the unit of work and optional paging/settings/environment values. When both settings and environment are supplied, it calculates protected `ContentOrWebRootPath`: the configured web root normally, or `Path.Combine(ContentRootPath, "..\\" + virtualDirectoryName)` when the virtual directory is enabled. Within that same settings-and-environment block, enabled S3 configuration is copied into `S3BucketOptions`; the constructor does not configure an `IAmazonS3` client or register `IS3StorageService`. Protected `IsSupportedContentType` accepts URL-encoded or multipart form requests; `HasValidFileUpload` additionally requires at least one uploaded file. Protected-internal `SetPropertyValueIfExists` and `GetPropertyValueIfExists` use reflection and silently do nothing/return default when a named property is absent.
+
+The derived-controller helper signatures are `string? ContentOrWebRootPath { get; private set; }`, `bool IsSupportedContentType { get; }`, and `bool HasValidFileUpload { get; }`. Reflection helpers are `void SetPropertyValueIfExists<T>(T m, string propertyName, object? value)` and `TResult? GetPropertyValueIfExists<T, TResult>(T m, string propertyName)`. The two content-type checks require form content, accept only `application/x-www-form-urlencoded` or `multipart/form-data` prefixes, and the file check also requires `Request.Form.Files.Count > 0`.
+
+### Current generic-ID read and CRUD bases
+
+Namespace: `PerspectiveV.Web.Rest.Controllers`; sources: `PerspectiveV.Web/Rest/Controllers/BaseReadOperationsControllerAsync.cs` and `PerspectiveV.Web/Rest/Controllers/BaseCrudControllerAsync.cs`.
+
+`BaseReadOperationsControllerAsync<IdType, EntityType, ModelType, DBContextType, IUnitOfWorkType>` derives from the shared base and declares the three read actions below. Its constructor takes `IUnitOfWorkType`, `IProjectionMapper<IdType, EntityType, ModelType>`, then optional `IOptions<PagingOptions>`, `IOptions<AppSettings>`, `IWebHostEnvironment`, `MediaSaveOptions`, and `IS3StorageService`. `BaseCrudControllerAsync` has the same constructor and all three read actions plus the write actions below.
+
+```csharp
+public BaseReadOperationsControllerAsync(
+    IUnitOfWorkType uow,
+    IProjectionMapper<IdType, EntityType, ModelType> mapper,
+    IOptions<PagingOptions>? defaultPagingOptions = null,
+    IOptions<AppSettings>? appSettingOptions = null,
+    IWebHostEnvironment? env = null,
+    MediaSaveOptions? mediaSaveOptions = null,
+    IS3StorageService? s3StorageService = null);
+
+public BaseCrudControllerAsync(
+    IUnitOfWorkType uow,
+    IProjectionMapper<IdType, EntityType, ModelType> mapper,
+    IOptions<PagingOptions>? defaultPagingOptions = null,
+    IOptions<AppSettings>? appSettingOptions = null,
+    IWebHostEnvironment? env = null,
+    MediaSaveOptions? mediaSaveOptions = null,
+    IS3StorageService? s3StorageService = null);
+```
+
+```csharp
+[HttpGet]
+public virtual async Task<IActionResult> Get(
+    [FromQuery] SortOptions<EntityType, ModelType>? sortOptions = null,
+    [FromServices] Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    [FromServices] Expression<Func<EntityType, bool>>? where = null,
+    [FromServices] Func<EntityType, ModelType>? select = null,
+    [BindNever] bool trackable = false,
+    [BindNever] bool getSoftDeleted = false,
+    CancellationToken cancellationToken = default);
+
+[HttpGet("{id}")]
+public virtual async Task<IActionResult> Get(
+    IdType id,
+    [FromServices] Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    [FromServices] Expression<Func<EntityType, bool>>? where = null,
+    CancellationToken cancellationToken = default);
+
+[HttpGet("[action]")]
+public virtual async Task<IActionResult> Paged(
+    [FromQuery] PagingOptions pagingOptions,
+    [FromQuery] SearchOptions<EntityType, ModelType>? searchOptions,
+    [FromQuery] SortOptions<EntityType, ModelType>? sortOptions,
+    [FromServices] Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    [FromServices] Expression<Func<EntityType, bool>>? where = null,
+    [FromServices] Func<EntityType, ModelType>? select = null,
+    [BindNever] bool trackable = false,
+    [BindNever] bool getSoftDeleted = false,
+    CancellationToken cancellationToken = default);
+```
+
+Both constructors find the repository by reflecting a unit-of-work property named `{EntityType.Name}Service` and cast it to `IRepositoryAsync<IdType, EntityType, ModelType, DBContextType>`. The consuming unit of work must expose that exact property and the DI graph must provide its implementation. Missing properties leave a null service; a mismatched property type fails the cast.
+
+The collection and paged actions return `Ok(...)` around repository results. Their include/predicate/selector parameters come from DI because they use `[FromServices]`; the consuming host must register those delegates if it wants them populated. `trackable` and `getSoftDeleted` are marked `[BindNever]`, so they are not set from query input. `Paged` fills null offset/limit from the injected defaults before calling the repository. The by-ID action rejects a null/default ID with 400, calls `GetByIdAsync`, then returns 404 for a missing model; its `where` parameter is not passed to the repository. Add the route prefix and any `[ApiController]`, authorization, and validation policy in the application controller.
+
+`BaseCrudControllerAsync` adds these public actions:
+
+```csharp
+[HttpPost]
+public virtual async Task<IActionResult> Post(ModelType model, CancellationToken cancellationToken = default);
+
+[HttpPut]
+public virtual async Task<IActionResult> Put(ModelType model, CancellationToken cancellationToken = default);
+
+[HttpDelete("{id}")]
+public virtual async Task<IActionResult> Delete(IdType id, CancellationToken cancellationToken = default);
+
+[HttpDelete("{id}/[action]")]
+public virtual async Task<IActionResult> Purge(IdType id, CancellationToken cancellationToken = default);
+```
+
+`Post` and `Put` reject null models or failed entity mappings with 400, set `CreatedBy` or `UpdatedBy` for `IAuditable` entities from the current user ID (falling back to `"Missing Account ID"`), optionally save uploaded media, and call the mapped repository operation. They return the repository model with 201 or 200. `Delete` calls repository `DeleteAsync`; `Purge` calls `PurgeAsync`. Both reject null/default IDs with 404 and return 200 with the repository result. Neither checks that the entity exists before calling the repository.
+
+The `mediaSaveOptions` constructor argument is currently discarded by both classes (`MediaSaveOptions` remains unset unless a derived controller assigns the public property). The same applies to the write bases below. The protected file helpers are `PostFilesS3StorageAsync`, `PutFilesS3StorageAsync`, `PostFilesLocalStorageAsync`, and `PutFilesLocalStorageAsync`; they require `MediaSaveOptions`, and S3 helpers also require `IS3StorageService`. Single-file update deletes the existing file before saving the replacement, so an upload failure can leave the old file removed. Collection updates do not remove old collection members. These helpers do not validate file size, type, name, or caller authorization.
+
+### Split write base with current repository
+
+The five-parameter `BaseWriteOperationsControllerAsync<IdType, EntityType, ModelType, DBContextType, IUnitOfWorkType>` is in namespace `PerspectiveV.Web.Rest.Controllers.Net8`, source `PerspectiveV.Web/Rest/Controllers/BaseWriteOperationsControllerAsync.cs`. It accepts the same optional settings as the current CRUD base, but its mapper parameter is `IProjectionMapper<string, EntityType, ModelType>` even though its repository uses generic `IdType`.
+
+Its constructor signature is:
+
+```csharp
+public BaseWriteOperationsControllerAsync(
+    IUnitOfWorkType uow,
+    IProjectionMapper<string, EntityType, ModelType> mapper,
+    IOptions<PagingOptions>? defaultPagingOptions = null,
+    IOptions<AppSettings>? appSettingOptions = null,
+    IWebHostEnvironment? env = null,
+    MediaSaveOptions? mediaSaveOptions = null,
+    IS3StorageService? s3StorageService = null);
+```
+
+It exposes these actions, with the same route attributes as the current CRUD actions:
+
+```csharp
+[HttpPost] public virtual async Task<IActionResult> Post(ModelType model, CancellationToken cancellationToken = default);
+[HttpPut] public virtual async Task<IActionResult> Put(ModelType model, CancellationToken cancellationToken = default);
+[HttpDelete("{id}")] public virtual async Task<IActionResult> Delete(IdType id, CancellationToken cancellationToken = default);
+[HttpDelete("{id}/[action]")] public virtual async Task<IActionResult> Purge(IdType id, CancellationToken cancellationToken = default);
+```
+
+It sets audit actor fields, calls the corresponding repository operations, and returns the mapped entity instance with 201/200 for Post/Put; the repository's mapped return value is not used. Delete and Purge return the repository output. It has no read actions. The `MediaSaveOptions` constructor argument is discarded here too.
+
+### Net6 REST controller
+
+Namespace: `PerspectiveV.Web.Rest.Controllers.Net6`; source: `PerspectiveV.Web/Rest/Controllers/Net6/BaseControllerAsync.cs`.
+
+`BaseControllerAsync<TEntity, TModel, TDBContext, TIUnitOfWork>` derives from `ControllerBase`, uses the obsolete Net6 `IRepositoryAsync<TEntity, TDBContext>` and `IProjectionMapper<string, TEntity, TModel>`, and has two public constructors:
+
+```csharp
+public BaseControllerAsync(
+    TIUnitOfWork uow,
+    IProjectionMapper<string, TEntity, TModel> mapper,
+    IOptions<PagingOptions>? defaultPagingOptions = null,
+    IOptions<AppSettings>? appSettingOptions = null,
+    IWebHostEnvironment? env = null);
+
+public BaseControllerAsync(
+    IRepositoryAsync<TEntity, TDBContext> service,
+    IProjectionMapper<string, TEntity, TModel> mapper,
+    IOptions<PagingOptions>? defaultPagingOptions = null);
+```
+
+The unit-of-work overload resolves `{EntityType.Name}Service` by reflection. Its public actions are:
+
+```csharp
+[HttpGet] public virtual async Task<IActionResult> Get();
+[HttpGet("[action]")] public virtual async Task<IActionResult> Paged([FromQuery] PagingOptions pagingOptions);
+[HttpGet("{id}")] public virtual async Task<IActionResult> Get(string id);
+[HttpPost] public virtual async Task<IActionResult> Post(TModel model);
+[HttpPut] public virtual async Task<IActionResult> Put(TModel model);
+[HttpDelete("{id}")] public virtual async Task<IActionResult> Delete(string id);
+```
+
+`Get` returns the repository values as-is. `Paged` applies default paging values and maps entity items to models. `Get(id)` rejects an empty ID with 404, loads by string ID, returns 404 when missing, and maps the entity. `Post` and `Put` map to entities, set actor fields for auditable models, persist, and return the entity with 201/200; null mappings return 404. `Delete` calls legacy `SoftDeleteAsync` and returns the ID with 200; it checks only for null (an empty string passes). No action accepts a cancellation token. The base does not add authorization checks.
+
+### Net8 string-ID REST controller bases
+
+Namespace: `PerspectiveV.Web.Rest.Controllers.Net8`; sources: `PerspectiveV.Web/Rest/Controllers/Net8/BaseReadOperationsControllerAsync.cs`, `PerspectiveV.Web/Rest/Controllers/Net8/BaseWriteOperationsControllerAsync.cs`, and `PerspectiveV.Web/Rest/Controllers/Net8/BaseCrudControllerAsync.cs`.
+
+The four-parameter `BaseReadOperationsControllerAsync<EntityType, ModelType, DBContextType, IUnitOfWorkType>`, `BaseWriteOperationsControllerAsync<...>`, and `BaseCrudControllerAsync<...>` use the string-ID Net8 repository interface and `IProjectionMapper<string, EntityType, ModelType>`. Their constructors take the unit of work, mapper, and the same optional paging/settings/environment/media/S3 arguments as the current bases. Each resolves `{EntityType.Name}Service` by reflection. They are not marked obsolete in Web, but their repository interface is obsolete.
+
+Each constructor has the signature below, with the matching class name (`BaseReadOperationsControllerAsync`, `BaseWriteOperationsControllerAsync`, or `BaseCrudControllerAsync`):
+
+```csharp
+public BaseReadOperationsControllerAsync(
+    IUnitOfWorkType uow,
+    IProjectionMapper<string, EntityType, ModelType> mapper,
+    IOptions<PagingOptions>? defaultPagingOptions = null,
+    IOptions<AppSettings>? appSettingOptions = null,
+    IWebHostEnvironment? env = null,
+    MediaSaveOptions? mediaSaveOptions = null,
+    IS3StorageService? s3StorageService = null);
+```
+
+The Net8 read and CRUD classes declare these list and paged signatures; the CRUD class repeats them in addition to its write actions:
+
+```csharp
+[HttpGet]
+public virtual async Task<IActionResult> Get(
+    [FromQuery] SortOptions<EntityType, ModelType>? sortOptions = null,
+    [FromServices] Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    [FromServices] Expression<Func<EntityType, bool>>? where = null,
+    [FromServices] Func<EntityType, ModelType>? select = null,
+    [BindNever] bool trackable = false,
+    [BindNever] bool getSoftDeleted = false,
+    CancellationToken cancellationToken = default);
+
+[HttpGet("{id}")]
+public virtual async Task<IActionResult> Get(
+    string id,
+    [FromServices] Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    [FromServices] Expression<Func<EntityType, bool>>? where = null,
+    CancellationToken cancellationToken = default);
+
+[HttpGet("[action]")]
+public virtual async Task<IActionResult> Paged(
+    [FromQuery] PagingOptions pagingOptions,
+    [FromQuery] SearchOptions<EntityType, ModelType>? searchOptions,
+    [FromQuery] SortOptions<EntityType, ModelType>? sortOptions,
+    [FromServices] Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    [FromServices] Expression<Func<EntityType, bool>>? where = null,
+    [FromServices] Func<EntityType, ModelType>? select = null,
+    [BindNever] bool trackable = false,
+    [BindNever] bool getSoftDeleted = false,
+    CancellationToken cancellationToken = default);
+```
+
+The Net8 read class builds an ID predicate when `where` is absent and returns the first match. It returns 400 for an empty ID, 404 when no match exists, and 200 with the repository model otherwise. The Net8 CRUD class passes `where` through to `GetSingleOrDefaultAsync` but does not build a predicate from `id`; without a DI-provided `where`, it can select multiple active rows and throw, or return a row unrelated to the requested ID. Its other read/list/paged parameters and route attributes match the read base.
+
+The Net8 write and CRUD classes expose the following write actions; the write-only class has only these actions, while CRUD adds them to its read methods:
+
+```csharp
+[HttpPost]
+public virtual async Task<IActionResult> Post(ModelType model, CancellationToken cancellationToken = default);
+[HttpPut]
+public virtual async Task<IActionResult> Put(ModelType model, CancellationToken cancellationToken = default);
+[HttpDelete("{id}")]
+public virtual async Task<IActionResult> Delete(string id, CancellationToken cancellationToken = default);
+[HttpDelete("{id}/[action]")]
+public virtual async Task<IActionResult> Purge(string id, CancellationToken cancellationToken = default);
+```
+
+They return 400 for null or unmappable write models, set audit actor fields, save optional media, and return the entity instance with 201/200 after persistence. Delete/Purge check only for null IDs, then call the legacy repository's mapped delete/purge operations and return 200. The Net8 read and CRUD paged methods add `IsDeleted == false` when no `where` clause is supplied for a soft-deletable entity; list and ID reads use repository behavior. The Net8 controller folders are compatibility APIs, not target-framework declarations.
+
+## REST response envelopes
+
+All response types are in `PerspectiveV.Web.Rest.Responses`. Source paths are under `PerspectiveV.Web/Rest/Responses/`. Constructors set mutable response properties; they do not validate status codes or sanitize payloads. `ApiResponse` timestamps are based on local `DateTime.Now`, not UTC.
+
+| Type | Public constructors and members | Contract |
+| --- | --- | --- |
+| `ApiResponse` | `ApiResponse()`, `ApiResponse(int? statusCode)`; `int? StatusCode { get; set; }`, `DateTime TimeStamp { get; set; }`. | Base status/timestamp envelope. |
+| `ApiResponse<T>` | `ApiResponse(T? content)`; `T? Content { get; set; }`. | Typed content plus base status/timestamp; the constructor does not set a status code. |
+| `ApiSuccessResponse` | `ApiSuccessResponse(object? content = null)`, `ApiSuccessResponse(object? content = null, int? statusCode = 200)`; `object? Content { get; set; }`. | Untyped success content; defaults to 200. |
+| `ApiSuccessResponse<T>` | `ApiSuccessResponse(T? content)`, `ApiSuccessResponse(T? content, int? statusCode = 200)`; `T? Content { get; set; }`. | Typed success content; defaults to 200. |
+| `ApiResourceCreatedResponse<T>` | `ApiResourceCreatedResponse(T? content)`, `ApiResourceCreatedResponse(T? content = null, int statusCode = 201)`, where `T : class`. | Typed created response; defaults to 201 and inherits typed `Content`. |
+| `ApiResourceCreatedResponse` | `ApiResourceCreatedResponse(object? content)`, `ApiResourceCreatedResponse(object? content = null, int? statusCode = 201)`; `object? Content { get; set; }`. | Untyped created response. |
+| `ApiPagedSuccessResponse<T>` | `ApiPagedSuccessResponse(PagedResult<T>? content = null)`, `ApiPagedSuccessResponse(PagedResult<T>? content = null, int statusCode = 200)`. | Success envelope whose inherited typed `Content` is a `PagedResult<T>`. |
+| `ApiNameValueSuccessResponse<T>` | `ApiNameValueSuccessResponse(NameValuePair<T>? content = null)`, `ApiNameValueSuccessResponse(NameValuePair<T>? content = null, int statusCode = 200)`. | Success envelope for `NameValuePair<T>`. |
+| `ApiKeyValueSuccessResponse<T>` | `ApiKeyValueSuccessResponse(KeyValuePair<T>? content = null)`, `ApiKeyValueSuccessResponse(int statusCode = 200, KeyValuePair<T>? content = null)`. | Success envelope for the library's `PerspectiveV.Primitives.Types.Models.KeyValuePair<T>`. |
+| `ApiExceptionResponse` | `ApiExceptionResponse()`, `ApiExceptionResponse(string? message)`, `ApiExceptionResponse(int? statusCode)`, `ApiExceptionResponse(string? message, int? statusCode)`; `string? Message { get; set; }`. | Error envelope; parameterless and message-only overloads default to 400. |
+| `ApiExceptionDetailResponse` | `ApiExceptionDetailResponse(Exception? ex, int? statusCode)`, `(Exception ex)`, `(ApiException ex)`, `(object? exception, int? statusCode)`; adds `object? Errors`, `string? StackTrace`, `string? ExceptionType`, and `string? InnerMessage`. | Extends `ApiExceptionResponse`. Exception inputs copy exception details; `ValidationProblemDetails` copies its title and errors; other objects become `Errors`. |
+
+Response properties are mutable auto-properties with these declared types: `StatusCode` is `int?`, `TimeStamp` is `DateTime`, and each `Content`, `Message`, `Errors`, `StackTrace`, `ExceptionType`, and `InnerMessage` property uses the nullable type shown in the table (`Content` is generic on typed envelopes). The error-detail constructors are `ApiExceptionDetailResponse(Exception? ex, int? statusCode)`, `ApiExceptionDetailResponse(Exception ex)`, `ApiExceptionDetailResponse(ApiException ex)`, and `ApiExceptionDetailResponse(object? exception, int? statusCode)`.
+
+`ApiSuccessResponse<T>` and typed response subclasses expose the inherited `Content` property; the specialized classes do not declare a second payload property. `ApiExceptionDetailResponse(Exception)` defaults to 500; the `ApiException` overload uses its status. Passing an arbitrary object stores it in `Errors` without interpretation.
+
+## MVC result wrappers and filters
+
+The result types are in `PerspectiveV.Web.Rest.Results`, source paths under `PerspectiveV.Web/Rest/Results/`.
+
+| Type | Public constructors and members | Behavior |
+| --- | --- | --- |
+| `ApiSuccessResult` | `ApiSuccessResult(ApiSuccessResponse? value = null)`, `ApiSuccessResult(object? value = null, int? statusCode = 200)`; `DateTime TimeStamp { get; set; }`, `object? Content { get; set; }`. | `ObjectResult` for success payloads. The object overload puts an `ApiSuccessResponse` in MVC `Value`; the public `Content` property remains unset on that overload. |
+| `ApiResourceCreatedResult` | `ApiResourceCreatedResult(object? value = null, int? statusCode = 201)`, `ApiResourceCreatedResult(ApiResourceCreatedResponse? value)`, `ApiResourceCreatedResult(object? value)`; `DateTime TimeStamp { get; set; }`, `object? Content { get; set; }`. | `ObjectResult` for created payloads. Overloads set status to 201 except the `(object?, int?)` overload, which honors its argument. The response-object overload sets MVC `Value` to the supplied response and also sets `Content` to a new created-response envelope. |
+| `ApiExceptionResult` | `ApiExceptionResult(ApiExceptionResponse? value)`, `ApiExceptionResult(string message, int statusCode)`, `ApiExceptionResult(string message)`; `string? Message { get; set; }`, `DateTime TimeStamp { get; set; }`. | `ObjectResult` for standard errors; message-only construction defaults to 500. The `TimeStamp` property is not initialized by these constructors. |
+| `ApiExceptionDetailResult` | `ApiExceptionDetailResult(ApiExceptionDetailResponse response)`, `ApiExceptionDetailResult(object? value, int? statusCode)`, `ApiExceptionDetailResult(Exception value)`. | `ObjectResult` for detailed error envelopes; the exception overload uses status 500. |
+
+Filters are in `PerspectiveV.Web.Rest.Filters`, source paths under `PerspectiveV.Web/Rest/Filters/`.
+
+| Type | Public signature | Behavior |
+| --- | --- | --- |
+| `ApiException` | Constructors: `ApiException()`, `(Exception ex)`, `(string message)`, `(string message, int statusCode)`, `(string message, string stackTrace)`, `(ModelStateDictionary modelState)`. Public properties: `new string? Message`, `string? Detail`, `int StatusCode`, `new string? StackTrace`. | Defaults to 500 except when status is supplied. The model-state constructor sets `Message` to `"Invalid parameters"` and `Detail` to the first validation error or a fallback. The string constructor sets the new `Message` property but does not pass that string to `Exception`'s base constructor. Null `StackTrace` is omitted from JSON. |
+| `ApiExceptionFilter` | `ApiExceptionFilter(IWebHostEnvironment env, ILogger<ApiExceptionFilter> logger)`; `void OnException(ExceptionContext context)`. | Maps `UnauthorizedAccessException` to 401, `HttpRequestException` to its status (0 if absent), and `BadHttpRequestException` to its status. Other exceptions become detailed 500 responses outside Production and a generic message in Production; details from the exception chain are logged. |
+| `ApiResponseFilter` | `ApiResponseFilter(ILogger<ApiResponseFilter> logger)`; `Task OnResultExecutionAsync(ResultExecutingContext context, ResultExecutionDelegate next)`. | Wraps successful non-null `ObjectResult` values as `ApiSuccessResult`, or as `ApiResourceCreatedResult` for status 201. It treats null results/payloads and statuses at least 400 as errors, logs them, and returns `ApiExceptionDetailResult`; those branches do not call `next()`. A `StatusCodeResult` is converted to an object result with a null payload, so this filter also treats statuses such as 204 as an error payload. |
+
+The package does not globally register either filter. Add the intended filter(s) to the consuming MVC pipeline and check existing exception middleware before enabling both, because they can process the same failure path.
+
+## S3 storage
+
+### Contract and implementation
+
+The contract is `PerspectiveV.Web.S3Storage.Interface.IS3StorageService` in `PerspectiveV.Web/S3Storage/Interface/IS3StorageService.cs`. The implementation is `PerspectiveV.Web.S3Storage.Implementation.S3StorageService` in `PerspectiveV.Web/S3Storage/Implementation/S3StorageService.cs`.
+
+```csharp
+Task<string> UploadFileAsync(IFormFile file, string folderName, CancellationToken cancellationToken = default);
+Task<string> UploadFileAsync(IFormFile file, string folderName, IUploadProgress? progress = null, CancellationToken cancellationToken = default);
+Task<Stream> OpenReadStreamAsync(string key, CancellationToken cancellationToken = default);
+Task DeleteFileAsync(string key, CancellationToken cancellationToken = default);
+Task<bool> ExistsAsync(string key, CancellationToken cancellationToken = default);
+Task CopyFileAsync(string sourceKey, string destinationKey, CancellationToken cancellationToken = default);
+Task<string> GetContentTypeAsync(string key, CancellationToken cancellationToken = default);
+Task<long> GetFileSizeAsync(string key, CancellationToken cancellationToken = default);
+Task<IDictionary<string, string>> GetMetadataAsync(string key, CancellationToken cancellationToken = default);
+Task<string> GetPreSignedUrlAsync(string key, int expiresInMinutes = 30, CancellationToken cancellationToken = default);
+Task<string> GetPreSignedUploadUrlAsync(string key, int expiresInMinutes = 30, CancellationToken cancellationToken = default);
+string GetPublicUrl(string key, CancellationToken cancellationToken = default);
+Task<IEnumerable<string>> ListFilesAsync(string prefix, CancellationToken cancellationToken = default);
+Task<IEnumerable<S3ObjectInfo>> ListFilesDetailedAsync(string prefix, CancellationToken cancellationToken = default);
+Task<string> InitiateMultipartUploadAsync(string key, CancellationToken cancellationToken = default);
+Task UploadPartAsync(string key, string uploadId, int partNumber, Stream partStream, CancellationToken cancellationToken = default);
+Task CompleteMultipartUploadAsync(string key, string uploadId, IEnumerable<string> partETags, CancellationToken cancellationToken = default);
+Task AbortMultipartUploadAsync(string key, string uploadId, CancellationToken cancellationToken = default);
+Task CreateBucketIfNotExistsAsync(CancellationToken cancellationToken = default);
+Task<bool> BucketExistsAsync(CancellationToken cancellationToken = default);
+```
+
+`S3StorageService(IAmazonS3 s3Client, IOptions<S3BucketOptions> options)` stores the supplied client and `options.Value`. The consuming host must configure the AWS client and the shared `PerspectiveV.Common.AppConfigurations.S3BucketOptions`, and register `IS3StorageService`; this package has no service-registration extension.
+
+| Operations | Behavior and caller contract |
+| --- | --- |
+| Upload | Rejects a null `IFormFile` and blank folder. Generates `{folder-without-trailing-slash}/{Guid}_{original-file-name}`, uploads with the incoming `ContentType`, and returns the generated key. It does not validate file size, content, file name, or allowed content types. A leading slash in the folder is normalized for the S3 request and removed by later key operations. |
+| Read/delete/existence/copy | `OpenReadStreamAsync` returns the live AWS response stream; the caller must dispose it. `DeleteFileAsync` deletes the normalized key. `ExistsAsync` returns false only for S3 404 and rethrows other errors. `CopyFileAsync` copies within the configured bucket. |
+| Metadata | Content type, size, and user metadata are read through S3 metadata requests. Metadata keys are returned in a case-insensitive dictionary. |
+| Pre-signed URLs | GET and PUT URLs default to 30 minutes. The expiry is based on `DateTime.UtcNow`; the cancellation token is not used because URL generation is synchronous. The method does not validate expiry or authorize the caller. |
+| Public URL | Requires nonblank `ServiceHost`, then concatenates host, bucket, and normalized key. The token is unused; the method does not make the object public, escape path segments, or check access policy. |
+| Listing | Each list method makes one `ListObjectsV2` request for the prefix and does not follow continuation tokens. Detailed results include key, size, and last-modified time; `ContentType` is not populated. |
+| Multipart | Initiate returns the upload ID; part upload takes caller-supplied numbering; completion maps the input ETags to sequential part numbers starting at 1 in enumeration order; abort forwards the upload ID. The caller owns ordering, retries, ETag collection, and cleanup. |
+| Bucket | `BucketExistsAsync` lists account buckets and compares names. `CreateBucketIfNotExistsAsync` creates the configured bucket only when the list has no match. `Bucket` must be non-null; missing configuration throws `InvalidOperationException`. |
+
+The implementation reads `Bucket` for every operation and `ServiceHost` for public URLs. It does not use the `AccessKey`, `SecretKey`, `Region`, or `IsEnabled` properties from `S3BucketOptions`; configure credentials/region on `IAmazonS3` and select local versus S3 behavior in the host.
+
+### Upload progress and object metadata types
+
+`IUploadProgress` in `PerspectiveV.Web.S3Storage.Interface` declares `void Report(long bytesTransferred, long? totalBytes)`. `ProgressStream(Stream inner, IUploadProgress progress, long? total)` in `PerspectiveV.Web.S3Storage.Implementation` is a public `Stream` wrapper with these public overrides: `bool CanRead { get; }`, `bool CanSeek { get; }`, `bool CanWrite { get; }`, `long Length { get; }`, `long Position { get; set; }`, `void Flush()`, `int Read(byte[] buffer, int offset, int count)`, `long Seek(long offset, SeekOrigin origin)`, `void SetLength(long value)`, `void Write(byte[] buffer, int offset, int count)`, and `ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)`. It forwards read/seek/length/position/flush operations to the inner stream and reports progress after the two write overrides. The callback measures bytes written through those methods, not server-side durability; callbacks can vary with how the AWS SDK writes.
+
+`S3ObjectInfo` in `PerspectiveV.Web.S3Storage.Models` is a mutable metadata object with `string Key { get; set; }`, `long? Size { get; set; }`, `DateTime? LastModified { get; set; }`, and `string? ContentType { get; set; }` properties. `Key` defaults to the empty string.
+
+## File upload configuration and helpers
+
+`MediaSaveOptions` is in `PerspectiveV.Web.Rest`, source `PerspectiveV.Web/Rest/MediaSaveOptions.cs`. It has mutable `string FolderPath { get; set; }`, `string PropertyName { get; set; }`, and `bool HasImageCollection { get; set; }` properties; the first two initialize to `null!`, and the collection flag defaults to false. The property name is applied by reflection to an entity. With the collection flag false the controller stores one file key/path; with it true the controller stores a list.
+
+`S3StorageIFormFileExtensions` in `PerspectiveV.Web.S3Storage.Extensions`, source `PerspectiveV.Web/S3Storage/Extensions/S3StorageIFormFileExtensions.cs`, declares:
+
+| Method | Behavior |
+| --- | --- |
+| `Task<string?> SaveToS3StorageGetKey(this IFormFileCollection files, IS3StorageService s3, string storageFolder, CancellationToken cancellationToken = default)` | Uploads only `files[0]`; returns null for an empty collection. |
+| `Task<List<string>?> SaveToS3StorageGetKeys(this IFormFileCollection files, IS3StorageService s3, string storageFolder, CancellationToken cancellationToken = default)` | Uploads each non-null file in order; returns null when empty, otherwise the uploaded keys. |
+| `Task DeleteFileFromS3Storage(this IFormFileCollection files, IS3StorageService s3, string objectKey, CancellationToken cancellationToken = default)` | Deletes the supplied key. The file collection parameter is not used. |
+
+The REST upload path also calls local file helpers from `PerspectiveV.Common.Extensions.FormFileExtensions`; see those helpers' reference for local-path behavior. The Web controllers do not add upload validation or an access check around these helpers.
+
+## Web extension methods
+
+### `ListExtensions`
+
+Namespace: `PerspectiveV.Web.Extensions`; source: `PerspectiveV.Web/Extensions/ListExtensions.cs`.
+
+| Public method | Behavior |
+| --- | --- |
+| `Type GetItemType<T>(this IEnumerable<T> enumerable)` | Returns `typeof(T)`; the enumerable value is unused. |
+| `List<SelectListItem> ToSelectItemList(dynamic values)` | Converts dynamic items with `Name` and `Id` members to select items; null input returns an empty list. |
+| `List<SelectListItem> ToSelectList<T>(this ICollection<T> values, string? value = null, string? displayText = null)` | Reflects a value property and label property for each non-null item. Defaults to `Id`/`Value` and `Name`/`Description`; missing values become empty strings and missing labels fall back to the value. |
+| `string ToCSL(this IEnumerable<string> list)` | Joins values with commas; null/empty input returns an empty string. |
+
+### `ReflectionExtensions`
+
+Namespace: `PerspectiveV.Web.Extensions`; source: `PerspectiveV.Web/Extensions/ReflectionExtensions.cs`.
+
+| Public method | Behavior |
+| --- | --- |
+| `T? GetAttribute<T>(this MemberInfo member, bool isRequired = false) where T : Attribute` | Returns the first matching attribute or null; throws `ArgumentException` if it is absent and `isRequired` is true. |
+| `string GetPropertyDisplayName<T>(Expression<Func<T, object>> propertyExpression)` | Reads `DisplayNameAttribute.DisplayName` from a property expression, falling back to the property name. Throws if the expression is not a property reference. |
+| `MemberInfo? GetPropertyInformation(Expression? propertyExpression)` | Returns a property member from a direct member expression or a conversion around one; returns null for other expression forms. |
+
+### `TempDataExtensions`
+
+Namespace: `PerspectiveV.Web.Extensions`; source: `PerspectiveV.Web/Extensions/TempDataExtensions.cs`.
+
+| Public method | Behavior |
+| --- | --- |
+| `void Set<T>(this ITempDataDictionary dic, string key, T itm)` | Throws for null dictionary or null/empty key; stores the value under that key. |
+| `T? Get<T>(this ITempDataDictionary dic, string key)` | Throws for null dictionary or null/empty key; returns a typed value, otherwise attempts `Convert.ChangeType`, returning default if absent or conversion fails. |
+| `void SetError(this ITempDataDictionary dic, string msg)` / `string GetError(this ITempDataDictionary dic)` | Writes/reads the string key `Error`; null writes and absent/non-string reads become empty string. |
+| `void SetMSG(this ITempDataDictionary dic, string msg)` / `string GetMSG(this ITempDataDictionary dic)` | Writes/reads the string key `MSG`; null writes and absent/non-string reads become empty string. |
+
+## MVC view controller
+
+`PerspectiveV.Web.MVC.BaseControllerAsync<TEntity, TViewModel, TDBContext, TIUnitOfWork>` in `PerspectiveV.Web/MVC/BaseControllerAsync.cs` derives from MVC `Controller`. It uses the legacy Net6 repository interface and a string-ID `IProjectionMapper`. Its public constructors are:
+
+```csharp
+public BaseControllerAsync(
+    TIUnitOfWork uow,
+    IProjectionMapper<string, TEntity, TViewModel> mapper,
+    IOptions<PagingOptions>? defaultPagingOptions = null,
+    IOptions<AppSettings>? appSettingOptions = null,
+    IWebHostEnvironment? env = null);
+
+public BaseControllerAsync(
+    IRepositoryAsync<TEntity, TDBContext> service,
+    IProjectionMapper<string, TEntity, TViewModel> mapper,
+    IOptions<PagingOptions>? defaultPagingOptions = null);
+```
+
+The first constructor resolves `{EntityType.Name}Service` from the unit of work. The class exposes these public actions:
+
+```csharp
+public virtual async Task<IActionResult> IndexCustomQuery(Func<Task<IEnumerable<TEntity>>> action);
+public virtual async Task<IActionResult> Index();
+[HttpGet("[action]")] public virtual async Task<IActionResult> Paged([FromQuery] PagingOptions pagingOptions);
+[HttpGet] public virtual async Task<IActionResult> CreateOrUpdate(string id);
+[HttpPost] public virtual async Task<IActionResult> CreateOrUpdate(string id, TViewModel vm);
+[HttpPost] public virtual async Task<IActionResult> Delete(string id);
+```
+
+`Index` and `IndexCustomQuery` require the view claim for the entity name and return views over list results. `Paged` uses injected defaults for missing offset/limit and maps the page to view models; it has no explicit permission check. GET `CreateOrUpdate` requires create permission for an empty ID or edit permission for an existing ID, then returns a new or mapped view model. POST `CreateOrUpdate` checks `ModelState`, separately checks create/edit permission, sets audit actor/time fields by reflection, persists and redirects to `Index`; on exceptions it stores the message in TempData and rethrows. `Delete` requires a nonempty ID and delete permission, calls legacy `SoftDeleteAsync`, and returns 200; its catch returns 500.
+
+The controller checks common entity permission claim names, but it does not replace application-level authorization policies. It exposes subclass helpers for permission checks, mapping, audit assignment, reflection-based property assignment, and `ContentOrWebRootPath` (`protected internal`). The repository/controller types in the `Net6` namespace depend on obsolete EF repository contracts; the Web controller itself has no `[Obsolete]` attribute.

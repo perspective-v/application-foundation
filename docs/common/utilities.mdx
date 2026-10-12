@@ -32,6 +32,6 @@ The `PerspectiveV.Common.Helpers` namespace contains expression utilities (`Expr
 
 `SMTPMailClient` accepts `SMTPClientSettings` and exposes synchronous `SendEmail(body, subject, recipients...)`.
 
-<Callout type="warn">
+<Warning>
 The current SMTP client implementation sets `EnableSsl` to `false` and sends synchronously. Review transport security and credential handling before using it with a production SMTP service; use a TLS-capable mail path when required by the provider.
-</Callout>
+</Warning>

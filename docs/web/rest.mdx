@@ -39,9 +39,9 @@ The unit of work must expose the repository as `UserEntityService`. A paged requ
 
 The CRUD base exposes `Get`, by-id `Get`, `Paged`, `Post`, `Put`, `Delete`, and `Purge` actions. `Delete` delegates to repository soft-delete semantics; `Purge` delegates to permanent deletion. The base includes local or S3 file-handling paths for `MediaSaveOptions` and the relevant host/S3 services.
 
-<Callout type="warn">
+<Warning>
 The current CRUD and write-controller constructors accept `MediaSaveOptions` but do not assign it to the inherited `MediaSaveOptions` property. Their upload actions check that property before saving files, so passing the constructor argument alone does not activate the upload path. Verify or correct this behavior in the implementation before relying on controller-managed uploads.
-</Callout>
+</Warning>
 
 ## Response envelopes
 

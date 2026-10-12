@@ -20,16 +20,17 @@ The package versions come from each `.csproj`: the three lower-level packages ar
 
 ## Publishing configuration
 
-The tracked [GitHub Actions workflow](https://github.com/perspective-v/application-foundation/blob/main/.github/workflows/publish-nuget.yml) publishes to the Gitea NuGet registry at `https://gitea.perspective-v.com/api/packages/perspective-v/nuget/index.json`. It runs only when manually dispatched from `main`, builds and packs the solution, then pushes all generated `.nupkg` files.
+The [GitHub Actions workflow](https://github.com/perspective-v/application-foundation/blob/main/.github/workflows/publish-nuget.yml) runs on pushes to the `deploy/feed` branch. It restores and builds the solution with the .NET 10 SDK, packs the four projects, then pushes each generated `.nupkg` to the feed URL provided by `NUGET_FEED_URL`.
 
 Before the first run, create the `nuget-publish` environment in GitHub and add these environment secrets:
 
 | Secret | Value |
 | --- | --- |
+| `NUGET_FEED_URL` | Gitea NuGet v3 feed URL. |
 | `REGISTRY_USERNAME` | Username for a Gitea CI account with package write access in the `perspective-v` organization. |
 | `REGISTRY_PASSWORD` | That account's Gitea access token with the `write:package` scope. |
 
-Restrict the environment to deployments from `main` and add required reviewers if publishing should wait for approval. The workflow also checks that it was dispatched from `main`. It injects credentials into the Gitea source-configuration step; the temporary runner configuration uses them for the package push. `nuget.config`, `azure-pipelines.yml`, and `publish-nuget-*.bat` remain ignored local files; the workflow configures the Gitea source from the environment secrets at run time.
+The workflow stops with an error if any of these secrets is missing. It configures the NuGet source on the runner and does not use the ignored local `nuget.config`, `azure-pipelines.yml`, or `publish-nuget-*.bat` files.
 
 Gitea rejects a package when the same package ID and version already exist. Increase the relevant `.csproj` version before publishing changed content, and verify each version on the registry afterward. See the [Gitea NuGet registry guide](https://docs.gitea.com/usage/packages/nuget) for registry behavior.
 
@@ -37,5 +38,5 @@ Gitea rejects a package when the same package ID and version already exist. Incr
 
 1. Confirm package versions and dependency references in all four project files.
 2. Run the Release build and inspect the produced `.nupkg` files.
-3. Confirm the GitHub `nuget-publish` environment is restricted to `main`, has the Gitea username/token secrets, and has the intended reviewer gate.
-4. Run the workflow from `main` and verify the package versions on Gitea.
+3. Confirm the `nuget-publish` environment contains the three required secrets and has any intended reviewer gate.
+4. Push the release commit to `deploy/feed` and verify the published package versions in Gitea.

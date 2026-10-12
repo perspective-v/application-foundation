@@ -1,0 +1,16 @@
+{
+  "title": "Application Foundation",
+  "pages": [
+    "index",
+    "getting-started",
+    "architecture",
+    "versioning-and-migration",
+    "repository-workflow",
+    "mapper-and-repository-wiring",
+    "primitives",
+    "common",
+    "entity-framework",
+    "web",
+    "reference"
+  ]
+}

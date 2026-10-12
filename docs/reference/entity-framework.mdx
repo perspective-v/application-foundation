@@ -1,0 +1,305 @@
+---
+title: PerspectiveV.EntityFramework API reference
+description: EF Core query helpers and repository contracts, implementations, and compatibility APIs.
+full: true
+---
+
+`PerspectiveV.EntityFramework` targets `net10.0`, references `Microsoft.EntityFrameworkCore` 10.0.6 and `PerspectiveV.Common`, and contains EF Core helpers plus three repository API generations. The package does not create a `DbContext`, configure a provider, register repositories, or define a unit of work. Public types are in the `PerspectiveV.EntityFramework.Extensions`, `PerspectiveV.EntityFramework.Repository.Interfaces`, `PerspectiveV.EntityFramework.Repository.Implementation`, and versioned repository namespaces. Source paths below are relative to the repository root.
+
+## Query and context extensions
+
+### `EfProperty`
+
+Namespace: `PerspectiveV.EntityFramework.Extensions`; source: `PerspectiveV.EntityFramework/Extensions/EfCoreExtensions.cs`.
+
+| Public member | Signature and behavior |
+| --- | --- |
+| `Property` | `Expression Property(Expression entity, string propertyName, Type propertyType)`. Builds a call to `EF.Property<propertyType>(entity, propertyName)`, suitable for query expressions that need a property selected by name. |
+
+### `EfCoreExtensions`
+
+Namespace: `PerspectiveV.EntityFramework.Extensions`; source: `PerspectiveV.EntityFramework/Extensions/EfCoreExtensions.cs`.
+
+| Public member | Signature and behavior |
+| --- | --- |
+| `ByIdDynamic<TEntity>` | `Expression<Func<TEntity, bool>> ByIdDynamic<TEntity>(object id)`. Builds an `Id` equality expression using the detected `IEntity<Guid>`, `IEntity<int>`, `IEntity<long>`, or `IEntity<string>` contract. Unsupported entity ID contracts throw `NotSupportedException`; `id` must have the detected runtime type. |
+| `ByTId<TEntity, TId>` | `Expression<Func<TEntity, bool>> ByTId<TEntity, TId>(TId id)`. Builds `x.Id == id` without an `IEntity<TId>` constraint or type conversion. `TEntity` must expose a compatible `Id` property. |
+| `IsDeleted<TEntity>` | `Expression<Func<TEntity, bool>> IsDeleted<TEntity>(bool getSoftDeleted)`. Compares `IsDeleted` to the supplied flag; `false` selects active rows and `true` selects deleted rows. A nullable-bool property is coalesced to `false` before comparison. |
+| `HasClientId<TEntity>` | `Expression<Func<TEntity, bool>> HasClientId<TEntity>(string clientId)`. Intended to compare `AppClientId` with the supplied value. The shared `IAppClient.AppClientId` contract is `Guid?`, so the current string comparison has mismatched expression types and throws when the expression is built for that contract. |
+| `NotDeleted<TEntity>` | `Expression<Func<TEntity, bool>> NotDeleted<TEntity>() where TEntity : ISoftDeletable`. Builds a predicate requiring `IsDeleted == false`. |
+| `ToNameValuePair<TEntity, TId>` | `Expression<Func<TEntity, NameValuePair<TId>>> ToNameValuePair<TEntity, TId>() where TEntity : class, INamedEntity<TId>`. Projects `Id` to `Value` and `Name` to `Name`, substituting `"No Name"` for a null name. |
+
+The repository uses `ByTId` for its current ID lookup and `ByIdDynamic` for current delete/purge-by-ID operations. The dynamic helper's supported ID set is narrower than `IEntity<T>` in `PerspectiveV.Primitives`.
+
+### `DbContextExtensions`
+
+Namespace: `PerspectiveV.EntityFramework.Extensions`; source: `PerspectiveV.EntityFramework/Extensions/DbContextExtensions.cs`.
+
+| Public member | Signature and behavior |
+| --- | --- |
+| `DetachLocal<T>` | `void DetachLocal<T>(this DbContext context, T t, string entryId) where T : class, IEntity`. Searches `context.Set<T>().Local` and detaches the first entity whose `Id.Equals(entryId)`. `t` is not used. Since `IEntity.Id` is `Guid` while `entryId` is `string`, ordinary GUID IDs do not match this comparison. |
+| `DetachLocalObject<T>` | `void DetachLocalObject<T>(this DbContext context, T t, string entryId) where T : class`. If `t` implements one of the checked entity contracts, searches the local set by `((IEntity)x).Id.ToString() == entryId` and detaches the first match. The check recognizes several `IEntity<T>` types, but the predicate casts to non-generic `IEntity` (`Guid`); a matching non-Guid implementation can therefore fail with `InvalidCastException`. |
+| `ClearChanges` | `void ClearChanges(this DbContext ctx)`. Detaches every tracked Added, Modified, or Deleted entry. It does not undo database writes already saved and leaves Unchanged entries tracked. |
+
+## Current generic repository
+
+The current contract and implementation live in `PerspectiveV.EntityFramework.Repository.Interfaces` and `PerspectiveV.EntityFramework.Repository.Implementation`. The implementation requires reference-type entity/model types and a `DbContext` subclass; the interface itself declares no generic constraints.
+
+### `IRepositoryAsync<IdType, EntityType, ModelType, DbContextType>`
+
+Source: `PerspectiveV.EntityFramework/Repository/Interfaces/IRepositoryAsync.cs`.
+
+```csharp
+Task<List<ModelType>> GetAsync(
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    Expression<Func<EntityType, bool>>? where = null,
+    Func<EntityType, ModelType>? select = null,
+    SortOptions<EntityType, ModelType>? sortOptions = null,
+    bool trackable = false,
+    bool getSoftDeleted = false,
+    CancellationToken cancellationToken = default);
+
+Task<List<TResult>> GetAsync<TResult>(
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    Expression<Func<EntityType, bool>>? where = null,
+    Func<EntityType, TResult>? select = null,
+    SortOptions<EntityType, ModelType>? sortOptions = null,
+    bool trackable = false,
+    bool getSoftDeleted = false,
+    CancellationToken cancellationToken = default);
+
+Task<PagedResult<ModelType>> PagedAsync(
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    Expression<Func<EntityType, bool>>? where = null,
+    Func<EntityType, ModelType>? select = null,
+    PagingOptions? pagingOptions = null,
+    SearchOptions<EntityType, ModelType>? searchOptions = null,
+    SortOptions<EntityType, ModelType>? sortOptions = null,
+    bool trackable = false,
+    bool getSoftDeleted = false,
+    CancellationToken cancellationToken = default);
+
+Task<ModelType?> GetSingleOrDefaultAsync(
+    Expression<Func<EntityType, bool>>? where = null,
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    bool trackable = false,
+    bool getSoftDeleted = false,
+    CancellationToken cancellationToken = default);
+Task<ModelType?> GetFirstOrDefaultAsync(
+    Expression<Func<EntityType, bool>>? where = null,
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    bool trackable = false,
+    bool getSoftDeleted = false,
+    CancellationToken cancellationToken = default);
+IQueryable<EntityType> GetQueryable(
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    bool trackable = false);
+Task<ModelType?> GetByIdAsync(
+    IdType id,
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    bool trackable = false,
+    bool getSoftDeleted = false,
+    CancellationToken cancellationToken = default);
+Task<long> GetCountAsync(
+    Expression<Func<EntityType, bool>>? where = null,
+    CancellationToken cancellationToken = default);
+
+Task<List<ModelType>> CreateAsync(CancellationToken cancellationToken = default, params EntityType[] items);
+Task<ModelType> CreateAsync(EntityType item, CancellationToken cancellationToken = default);
+Task<List<ModelType>> UpdateAsync(CancellationToken cancellationToken = default, params EntityType[] items);
+Task<ModelType> UpdateAsync(EntityType item, CancellationToken cancellationToken = default);
+Task TransactionAsync(Func<DbContextType, Task>? action = null, CancellationToken cancellationToken = default);
+
+Task<List<ModelType>> DeleteAsync(
+    IdType? id = default,
+    Expression<Func<EntityType, bool>>? where = null,
+    CancellationToken cancellationToken = default,
+    params EntityType[] items);
+Task<ModelType> DeleteAsync(IdType? itemId = default, CancellationToken cancellationToken = default);
+Task<List<ModelType>> DeleteAsync(
+    Expression<Func<EntityType, bool>> deleteCondition,
+    CancellationToken cancellationToken = default);
+Task<List<ModelType>> DeleteAsync(
+    CancellationToken cancellationToken = default,
+    params EntityType[] itemsToDelte);
+
+Task<bool> PurgeAsync(
+    IdType? id = default,
+    Expression<Func<EntityType, bool>>? where = null,
+    CancellationToken cancellationToken = default,
+    params EntityType[] items);
+Task<bool> PurgeAsync(IdType? itemId = default, CancellationToken cancellationToken = default);
+Task<bool> PurgeAsync(
+    CancellationToken cancellationToken = default,
+    params EntityType[] itemsToDelte);
+Task<bool> PurgeAsync(
+    Expression<Func<EntityType, bool>> deleteCondition,
+    CancellationToken cancellationToken = default);
+```
+
+The spelling `itemsToDelte` is the interface parameter name on two overloads; named-argument callers must use that spelling when they call through the interface.
+
+### `RepositoryAsync<IdType, EntityType, ModelType, DbContextType>`
+
+Source: `PerspectiveV.EntityFramework/Repository/Implementation/RepositoryAsync.cs`.
+
+```csharp
+public abstract class RepositoryAsync<IdType, EntityType, ModelType, DbContextType>(
+    DbContextType db,
+    IProjectionMapper<IdType, EntityType, ModelType> mapper)
+    : IRepositoryAsync<IdType, EntityType, ModelType, DbContextType>
+    where ModelType : class
+    where EntityType : class
+    where DbContextType : DbContext;
+```
+
+The primary constructor stores the context and mapper. A concrete repository normally derives from this type, supplies its entity/model/context types, and is registered by the consuming application. Mapping is delegated to `IProjectionMapper<IdType, EntityType, ModelType>` from `PerspectiveV.Common.Mapper`; the mapper's query projection must be translatable by the selected EF provider.
+
+| Member group | Runtime behavior |
+| --- | --- |
+| `GetAsync` | Starts from `DbContext.Set<EntityType>()`; queries are no-tracking unless `trackable` is true. Applies the predicate, sort options, and include. With no sort terms, the fallback constructs `OrderBy(e => EF.Property<EntityType>(e, "Id"))`; because `EntityType` is used as the property value type, verify that the provider can translate this for the entity's actual ID type. The non-generic overload defaults to mapper projection, or uses `select`; the generic overload maps when `TResult == ModelType`, casts entities when `TResult == EntityType`, and otherwise attempts an in-memory cast of each entity. A mismatched `TResult` can throw. Custom selectors are `Func` delegates and run through LINQ-to-Objects enumeration rather than being translated as query projections. For soft-deletable entities, the non-generic path excludes deleted rows when `getSoftDeleted` is false and includes both states when true; the generic overload always filters `IsDeleted == getSoftDeleted`, so true returns only deleted rows. |
+| `PagedAsync` | Applies the optional predicate, search and sort options, then counts before pagination. With a soft-deletable entity, false excludes deleted rows; true skips the soft-delete predicate and can return both states. Offset defaults to 0 and limit to `int.MaxValue`; `Skip`/`Take` are applied only when a `PagingOptions` instance is supplied. Includes are added after pagination; results are projected by `select` or the mapper and returned with `ItemsCount`, `TotalItemsCount`, `Offset`, and `Limit`. A custom selector is a `Func` delegate and is enumerated client-side rather than translated by EF. |
+| `GetSingleOrDefaultAsync` | Applies include, optional predicate, no-tracking by default, and the soft-delete filter when false; true includes both states. Uses `SingleOrDefaultAsync`, so duplicate matches throw. A found row is passed through `Activator.CreateInstance<ModelType>()` before mapper assignment, requiring a public parameterless model constructor. |
+| `GetFirstOrDefaultAsync` | Same mapping, tracking, include, and soft-delete behavior as the single variant, but selects with `FirstOrDefaultAsync`. A found row also requires `ModelType` to have a public parameterless constructor because of the `Activator.CreateInstance` call. |
+| `GetQueryable` | Returns the entity query with optional include and no-tracking by default. It does not apply soft-delete filtering, predicates, or sorting; callers own those clauses. |
+| `GetByIdAsync` | Uses `ByTId` only when the entity implements one of the recognized entity contracts, applies optional include, and maps a match. If the entity is not recognized as an `IEntity` type, no ID predicate is created and the first row can be returned. When `getSoftDeleted` is false it excludes deleted rows; true disables that filter and includes both states. |
+| `GetCountAsync` | Counts the optional predicate over a no-tracking set. It does not automatically exclude soft-deleted rows. |
+| `CreateAsync` | Opens a transaction, processes each input separately, sets `IAuditable.CreatedDate` to UTC when the entity implements `IAuditable`, marks the entity Added, saves after each item, and maps each saved entity. It does not set `CreatedBy`. The single-item overload returns the first result from the list overload. |
+| `UpdateAsync` | Opens a transaction, detaches a local matching entity for recognized entity types, sets `IAuditable.UpdatedDate` to UTC, marks the input Modified, saves after each item, and maps each saved entity. It does not set `UpdatedBy`. The local detach helper has the ID-cast caveat described above. |
+| `TransactionAsync` | Begins a transaction, invokes the optional callback with the active context, commits, then detaches pending Added/Modified/Deleted entries via `ClearChanges`. It does not call `SaveChanges` for the callback; the callback must save its own work. Exceptions trigger rollback and are rethrown. |
+| `DeleteAsync` | This is a soft-delete-style update, not a physical delete. Explicit `items` take precedence; otherwise `id` takes precedence over `where`. It sets `IsDeleted = true` when the type implements `ISoftDeletable`, marks each entity Modified, saves each one, and returns mapped models. For other entities it still marks rows Modified without setting a deletion flag. The single-result overload calls `First()` and throws if nothing matched. ID selection uses `ByIdDynamic`, which supports only Guid, int, long, or string IDs. |
+| `PurgeAsync` | Marks explicit entities or entities selected by ID/predicate as EF Deleted, saves each one, and returns `true` after the transaction even if no rows matched. ID takes precedence over the predicate. This is the physical-delete operation; it does not apply a soft-delete filter. ID selection uses the same limited `ByIdDynamic` helper. |
+
+The repository rethrows query and persistence exceptions without wrapping them. Write groups use transactions and roll back on failure. The only automatically written audit fields are `CreatedDate` and `UpdatedDate`; actor identity belongs to the calling layer.
+
+## Compatibility repository namespaces
+
+The `Net6` and `Net8` names are namespace labels; this project still targets `net10.0`. Both legacy repository interfaces and implementations carry `[Obsolete(..., false)]` attributes and remain in the package for compatibility.
+
+### Net6 repository
+
+Namespace: `PerspectiveV.EntityFramework.Repository.Net6.Interfaces` and `.Implementation`; sources: `PerspectiveV.EntityFramework/Repository/Net6/Interfaces/IRepositoryAsync.cs` and `PerspectiveV.EntityFramework/Repository/Net6/Implementation/RepositoryAsync.cs`.
+
+`IRepositoryAsync<EntityType, DbContextType>` exposes the following signatures. It returns entity/object values rather than mapper-backed model values and has no cancellation-token parameters:
+
+```csharp
+Task<List<object>?> GetAsync(
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    Expression<Func<EntityType, bool>>? where = null,
+    Func<EntityType, object>? select = null,
+    Expression<Func<EntityType, object>>? orderBy = null,
+    OrderDirection orderDirection = OrderDirection.Ascending,
+    bool trackable = false,
+    bool getSoftDeleted = false);
+Task<List<TResult>?> GetAsync<TResult>(
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    Expression<Func<EntityType, bool>>? where = null,
+    Func<EntityType, object>? select = null,
+    Expression<Func<EntityType, object>>? orderBy = null,
+    OrderDirection orderDirection = OrderDirection.Ascending,
+    bool trackable = false,
+    bool getSoftDeleted = false);
+Task<PagedResult<object>?> PagedAsync(
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    Expression<Func<EntityType, bool>>? where = null,
+    Func<EntityType, object>? select = null,
+    PagingOptions? pagingOptions = null,
+    Expression<Func<EntityType, object>>? orderBy = null,
+    OrderDirection orderDirection = OrderDirection.Ascending,
+    bool trackable = false,
+    bool getSoftDeleted = false);
+Task<PagedResult<TResult>?> PagedAsync<TResult>(
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    Expression<Func<EntityType, bool>>? where = null,
+    Func<EntityType, object>? select = null,
+    PagingOptions? pagingOptions = null,
+    Expression<Func<EntityType, object>>? orderBy = null,
+    OrderDirection orderDirection = OrderDirection.Ascending,
+    bool trackable = false,
+    bool getSoftDeleted = false);
+Task<EntityType?> GetSingleOrDefaultAsync(
+    Expression<Func<EntityType, bool>>? where = null,
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    bool trackable = false);
+Task<EntityType?> GetFirstOrDefaultAsync(
+    Expression<Func<EntityType, bool>>? where = null,
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    bool trackable = false);
+IQueryable<EntityType> GetQueryable(
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    bool trackable = false);
+Task<EntityType?> GetByIdAsync(string id);
+Task<long> GetCountAsync(Expression<Func<EntityType, bool>>? where = null);
+Task CreateAsync(params EntityType[] items);
+Task UpdateAsync(params EntityType[] items);
+Task TransactionAsync(Func<DbContextType, Task>? action = null);
+Task SoftDeleteAsync(string? id = null, Expression<Func<EntityType, bool>>? where = null, params EntityType[] items);
+Task SoftDeleteAsync(string itemId);
+Task SoftDeleteAsync(Expression<Func<EntityType, bool>> deleteCondition);
+Task SoftDeleteAsync(params EntityType[] itemsToDelte);
+Task DeleteAsync(string? id = null, Expression<Func<EntityType, bool>>? where = null, params EntityType[] items);
+Task DeleteAsync(string itemId);
+Task DeleteAsync(params EntityType[] itemsToDelte);
+Task DeleteAsync(Expression<Func<EntityType, bool>> deleteCondition);
+```
+
+`RepositoryAsync<EntityType, DbContextType>(DbContextType db)` uses synchronous `ToList()` materialization inside its `GetAsync`/`PagedAsync` task methods, does not map through `IProjectionMapper`, and does not write audit fields. Soft-delete filtering in list and paged methods compares `IsDeleted` to `getSoftDeleted`; the first/single methods exclude deleted rows only when no custom predicate is supplied. `GetQueryable` and `GetCountAsync` do not apply that filter. `SoftDeleteAsync` sets `IsDeleted = true` for soft-deletable inputs and otherwise marks them Modified. Explicit-item `DeleteAsync` physically deletes; the ID/predicate branch currently materializes matching rows but then loops the empty `items` parameter, so it does not delete those matches. There is no purge operation in this API.
+
+```csharp
+public RepositoryAsync(DbContextType db);
+```
+
+### Net8 string-ID repository
+
+Namespace: `PerspectiveV.EntityFramework.Repository.Net8.Interfaces` and `.Implementation`; sources: `PerspectiveV.EntityFramework/Repository/Net8/Interfaces/IRepositoryAsync.cs` and `PerspectiveV.EntityFramework/Repository/Net8/Implementation/RepositoryAsync.cs`.
+
+```csharp
+[Obsolete("This interface is deprecated and will be removed in a future release. Use IRepositoryAsync<IdType, EntityType, ModelType, DbContextType> instead.", false)]
+public interface IRepositoryAsync<EntityType, ModelType, DbContextType>
+    : IRepositoryAsync<string, EntityType, ModelType, DbContextType>
+{ }
+
+[Obsolete("This class is deprecated and will be removed in a future release. Use RepositoryAsync<IdType, EntityType, ModelType, DbContextType> instead.", false)]
+public abstract class RepositoryAsync<EntityType, ModelType, DbContextType>(
+    DbContextType db,
+    IProjectionMapper<string, EntityType, ModelType> mapper)
+    : RepositoryAsync<string, EntityType, ModelType, DbContext>(db, mapper),
+      IRepositoryAsync<EntityType, ModelType, DbContextType>
+    where ModelType : class
+    where EntityType : class
+    where DbContextType : DbContext
+{ }
+```
+
+The interface inherits the complete current repository contract with `IdType` fixed to `string`. The implementation adds these public overloads and delegates them to the current generic base with `getSoftDeleted: false` for reads:
+
+```csharp
+Task<ModelType?> GetByIdAsync(
+    string id,
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    bool trackable = false,
+    CancellationToken cancellationToken = default);
+Task<ModelType?> GetFirstOrDefaultAsync(
+    Expression<Func<EntityType, bool>>? where = null,
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    bool trackable = false,
+    CancellationToken cancellationToken = default);
+Task<ModelType?> GetSingleOrDefaultAsync(
+    Expression<Func<EntityType, bool>>? where = null,
+    Func<IQueryable<EntityType>, IIncludableQueryable<EntityType, object>>? include = null,
+    bool trackable = false,
+    CancellationToken cancellationToken = default);
+Task TransactionAsync(
+    Func<DbContextType, Task>? action = null,
+    CancellationToken cancellationToken = default);
+```
+
+Use the four-parameter current contract for new repositories. The Net8 implementation's base repository is closed over `DbContext` while the compatibility interface carries `DbContextType`; verify the exact adapter behavior if consuming the legacy interface directly.
+
+## Composition and caller expectations
+
+- Implement a concrete `DbContext`, configure the provider and connection, and register it in the consuming application.
+- Register a concrete repository and expose it through the unit-of-work contract if a Web base controller resolves it. The expected property name is `{EntityType.Name}Service`.
+- Supply `IProjectionMapper<IdType, EntityType, ModelType>` and aligned query projection expressions. `GetQueryable` deliberately returns raw entities and does not apply the repository's soft-delete convention.
+- Search and sort use `PerspectiveV.Common.Paging` options and the model/entity property allowlists from `PerspectiveV.Common.Paging.Attributes`. Validate untrusted inputs at the API boundary; direct repository calls do not run MVC validation.
+- Decide whether `DeleteAsync` should mean soft deletion for the entity. It physically removes data only through `PurgeAsync` in the current API; non-soft-deletable types are merely marked Modified by `DeleteAsync`.

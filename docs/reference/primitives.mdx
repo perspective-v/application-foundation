@@ -1,0 +1,104 @@
+---
+title: PerspectiveV.Primitives reference
+description: Public contracts, base classes, and transport types in PerspectiveV.Primitives.
+---
+
+`PerspectiveV.Primitives` defines the shared contracts and simple base types used by the other libraries. The project targets `net10.0`; its project file has no project references or explicit NuGet package references. The types are in the `PerspectiveV.Primitives.Types.Interfaces`, `PerspectiveV.Primitives.Types.Entities`, and `PerspectiveV.Primitives.Types.Models` namespaces.
+
+All properties documented here are public and mutable (`get; set;`). The library declares no explicit constructors or methods on these types. Its public classes therefore use the compiler-provided parameterless constructors. Contracts and marker properties describe data shape; they do not validate values, populate audit metadata, filter queries, or implement persistence behavior by themselves.
+
+## Interfaces
+
+The interfaces are defined under `PerspectiveV.Primitives/Types/Interfaces/`.
+
+| Interface | Inheritance and members | Source |
+| --- | --- | --- |
+| `IEntity` | Extends `IEntity<Guid>`; exposes inherited `Id` of type `Guid`. | `PerspectiveV.Primitives/Types/Interfaces/IEntity.cs` |
+| `IEntity<T>` | `T Id`. | `PerspectiveV.Primitives/Types/Interfaces/IEntity.cs` |
+| `IModel` | Extends `IModel<Guid?>`; exposes inherited nullable `Guid` `Id`. | `PerspectiveV.Primitives/Types/Interfaces/IModel.cs` |
+| `IModel<T>` | `T? Id`, using nullable annotation on the unconstrained type parameter. | `PerspectiveV.Primitives/Types/Interfaces/IModel.cs` |
+| `INamedEntity` | Extends `IEntity`; adds `string? Name`. | `PerspectiveV.Primitives/Types/Interfaces/INamedEntity.cs` |
+| `INamedEntity<IdType>` | Extends `IEntity<IdType>`; adds `string? Name`. | `PerspectiveV.Primitives/Types/Interfaces/INamedEntity.cs` |
+| `INamedModel` | Extends `IModel`; adds `string? Name`. | `PerspectiveV.Primitives/Types/Interfaces/INamedModel.cs` |
+| `INamedModel<IdType>` | Extends `IModel<IdType>`; adds `string? Name`. | `PerspectiveV.Primitives/Types/Interfaces/INamedModel.cs` |
+| `IAuditable` | `string? CreatedBy`, `DateTime? CreatedDate`, `string? UpdatedBy`, and `DateTime? UpdatedDate`. | `PerspectiveV.Primitives/Types/Interfaces/IAuditable.cs` |
+| `ISoftDeletable` | `bool IsDeleted`. | `PerspectiveV.Primitives/Types/Interfaces/ISoftDeletable.cs` |
+| `IAppClient` | `Guid? AppClientId`; this interface does not inherit an entity or model contract. | `PerspectiveV.Primitives/Types/Interfaces/IAppClient.cs` |
+
+## Entity bases
+
+The entity classes are in the `PerspectiveV.Primitives.Types.Entities` namespace and source directory `PerspectiveV.Primitives/Types/Entities/`. Generic and non-generic variants have the same composition, with the identifier type supplied by `IdType` in generic variants.
+
+| Class | Base and implemented contract | Members added by the class | Source |
+| --- | --- | --- | --- |
+| `Entity` | Implements `IEntity` (`IEntity<Guid>`). | `Guid Id`; marked `[Key]` and `[DatabaseGenerated(DatabaseGeneratedOption.Identity)]`. | `PerspectiveV.Primitives/Types/Entities/Entity.cs` |
+| `Entity<IdType>` | Implements `IEntity<IdType>`. | `IdType Id`; carries the same key and identity-generation attributes. | `PerspectiveV.Primitives/Types/Entities/Entity.cs` |
+| `NamedEntity` | Extends `Entity`; implements `INamedEntity`. | `string? Name`. | `PerspectiveV.Primitives/Types/Entities/NamedEntity.cs` |
+| `NamedEntity<IdType>` | Extends `Entity<IdType>`; implements `INamedEntity<IdType>`. | `string? Name`. | `PerspectiveV.Primitives/Types/Entities/NamedEntity.cs` |
+| `SoftDeletableEntity` | Extends `Entity`; implements `ISoftDeletable`. | `bool IsDeleted`. | `PerspectiveV.Primitives/Types/Entities/SoftDeletableEntity.cs` |
+| `SoftDeletableEntity<IdType>` | Extends `Entity<IdType>`; implements `ISoftDeletable`. | `bool IsDeleted`. | `PerspectiveV.Primitives/Types/Entities/SoftDeletableEntity.cs` |
+| `AuditableEntity` | Extends `Entity`; implements `IAuditable`. | `string? CreatedBy`, `DateTime? CreatedDate`, `string? UpdatedBy`, `DateTime? UpdatedDate`. | `PerspectiveV.Primitives/Types/Entities/AuditableEntity.cs` |
+| `AuditableEntity<IdType>` | Extends `Entity<IdType>`; implements `IAuditable`. | The same four audit properties. | `PerspectiveV.Primitives/Types/Entities/AuditableEntity.cs` |
+| `AuditableNamedEntity` | Extends `AuditableEntity`; implements `INamedEntity`. | `string? Name`. | `PerspectiveV.Primitives/Types/Entities/AuditableNamedEntity.cs` |
+| `AuditableNamedEntity<IdType>` | Extends `AuditableEntity<IdType>`; implements `INamedEntity<IdType>`. | `string? Name`. | `PerspectiveV.Primitives/Types/Entities/AuditableNamedEntity.cs` |
+| `AuditableSoftDeletableEntity` | Extends `SoftDeletableEntity`; implements `IAuditable`. | The four audit properties. | `PerspectiveV.Primitives/Types/Entities/AuditableSoftDeletableEntity.cs` |
+| `AuditableSoftDeletableEntity<IdType>` | Extends `SoftDeletableEntity<IdType>`; implements `IAuditable`. | The four audit properties. | `PerspectiveV.Primitives/Types/Entities/AuditableSoftDeletableEntity.cs` |
+| `SoftDeletableNamedEntity` | Extends `NamedEntity`; implements `ISoftDeletable`. | `bool IsDeleted`. | `PerspectiveV.Primitives/Types/Entities/SoftDeletableNamedEntity.cs` |
+| `SoftDeletableNamedEntity<IdType>` | Extends `NamedEntity<IdType>`; implements `ISoftDeletable`. | `bool IsDeleted`. | `PerspectiveV.Primitives/Types/Entities/SoftDeletableNamedEntity.cs` |
+| `AuditableSoftDeletableNamedEntity` | Extends `AuditableSoftDeletableEntity`; implements `INamedEntity`. | `string? Name`. | `PerspectiveV.Primitives/Types/Entities/AuditableSoftDeletableNamedEntity.cs` |
+| `AuditableSoftDeletableNamedEntity<IdType>` | Extends `AuditableSoftDeletableEntity<IdType>`; implements `INamedEntity<IdType>`. | `string? Name`. | `PerspectiveV.Primitives/Types/Entities/AuditableSoftDeletableNamedEntity.cs` |
+
+`Entity.Id` is a non-nullable `Guid`; `Entity<IdType>.Id` has the declared type `IdType`. The generic identifier's actual value and generation behavior depend on its type and the consuming persistence provider. The key attributes request identity generation through data annotations; this package does not generate identifiers itself.
+
+The inheritance chain composes concerns as follows: named variants add `Name`; soft-deletable variants add `IsDeleted`; auditable variants add the four audit properties. `AuditableSoftDeletableEntity` extends `SoftDeletableEntity` directly and declares audit properties itself; the named audit/soft-delete variant extends that class and adds `Name`.
+
+## Model bases
+
+The model classes are in the `PerspectiveV.Primitives.Types.Models` namespace and source directory `PerspectiveV.Primitives/Types/Models/`. They mirror the entity families except that model identifiers are nullable-annotated and are not decorated with key-generation attributes.
+
+| Class | Base and implemented contract | Members added by the class | Source |
+| --- | --- | --- | --- |
+| `Model` | Implements `IModel` (`IModel<Guid?>`). | `Guid? Id`. | `PerspectiveV.Primitives/Types/Models/Model.cs` |
+| `Model<IdType>` | Implements `IModel<IdType>`. | `IdType? Id`, nullable-annotated for the unconstrained type parameter. | `PerspectiveV.Primitives/Types/Models/Model.cs` |
+| `NamedModel` | Extends `Model`; implements `INamedModel`. | `string? Name`. | `PerspectiveV.Primitives/Types/Models/NamedModel.cs` |
+| `NamedModel<IdType>` | Extends `Model<IdType>`; implements `INamedModel<IdType>`. | `string? Name`. | `PerspectiveV.Primitives/Types/Models/NamedModel.cs` |
+| `SoftDeletableModel` | Extends `Model`; implements `ISoftDeletable`. | `bool IsDeleted`. | `PerspectiveV.Primitives/Types/Models/SoftDeletableModel.cs` |
+| `SoftDeletableModel<IdType>` | Extends `Model<IdType>`; implements `ISoftDeletable`. | `bool IsDeleted`. | `PerspectiveV.Primitives/Types/Models/SoftDeletableModel.cs` |
+| `AuditableModel` | Extends `Model`; implements `IAuditable`. | `string? CreatedBy`, `DateTime? CreatedDate`, `string? UpdatedBy`, `DateTime? UpdatedDate`. | `PerspectiveV.Primitives/Types/Models/AuditableModel.cs` |
+| `AuditableModel<IdType>` | Extends `Model<IdType>`; implements `IAuditable`. | The same four audit properties. | `PerspectiveV.Primitives/Types/Models/AuditableModel.cs` |
+| `AuditableNamedModel` | Extends `AuditableModel`; implements `INamedModel`. | `string? Name`. | `PerspectiveV.Primitives/Types/Models/AuditableNamedModel.cs` |
+| `AuditableNamedModel<IdType>` | Extends `AuditableModel<IdType>`; implements `INamedModel<IdType>`. | `string? Name`. | `PerspectiveV.Primitives/Types/Models/AuditableNamedModel.cs` |
+| `AuditableSoftDeletableModel` | Extends `SoftDeletableModel`; implements `IAuditable`. | The four audit properties. | `PerspectiveV.Primitives/Types/Models/AuditableSoftDeletableModel.cs` |
+| `AuditableSoftDeletableModel<IdType>` | Extends `SoftDeletableModel<IdType>`; implements `IAuditable`. | The four audit properties. | `PerspectiveV.Primitives/Types/Models/AuditableSoftDeletableModel.cs` |
+| `SoftDeletableNamedModel` | Extends `NamedModel`; implements `ISoftDeletable`. | `bool IsDeleted`. | `PerspectiveV.Primitives/Types/Models/SoftDeletableNamedModel.cs` |
+| `SoftDeletableNamedModel<IdType>` | Extends `NamedModel<IdType>`; implements `ISoftDeletable`. | `bool IsDeleted`. | `PerspectiveV.Primitives/Types/Models/SoftDeletableNamedModel.cs` |
+| `AuditableSoftDeletableNamedModel` | Extends `AuditableSoftDeletableModel`; implements `INamedModel`. | `string? Name`. | `PerspectiveV.Primitives/Types/Models/AuditableSoftDeletableNamedModel.cs` |
+| `AuditableSoftDeletableNamedModel<IdType>` | Extends `AuditableSoftDeletableModel<IdType>`; implements `INamedModel<IdType>`. | `string? Name`. | `PerspectiveV.Primitives/Types/Models/AuditableSoftDeletableNamedModel.cs` |
+
+`Model.Id` is explicitly `Guid?`. `Model<IdType>.Id` is declared `IdType?` with an unconstrained type parameter; C# nullable annotations do not make every value-type `IdType` a `Nullable<IdType>`. Model classes have no key-generation attributes.
+
+## Other model types
+
+| Type | Public members and behavior | Source |
+| --- | --- | --- |
+| `FileModel` | Four nullable strings: `Id`, `Name`, `Data`, and `Extension`. The class does not validate or encode `Data`. | `PerspectiveV.Primitives/Types/Models/FileModel.cs` |
+| `NameValuePair<T>` | `string? Name` and `T? Value`; `Value` uses nullable annotation on the unconstrained `T`. | `PerspectiveV.Primitives/Types/Models/NameValuePair.cs` |
+| `KeyValuePair<T>` | `string? Key` and `T? Value`; `Value` uses nullable annotation on the unconstrained `T`. This is the library's own class, separate from `System.Collections.Generic.KeyValuePair<TKey, TValue>`. | `PerspectiveV.Primitives/Types/Models/KeyValuePair.cs` |
+| `OrderDirection` | Enum values `Ascending = 1` with description `"asce"`, and `Descending = 2` with description `"desc"`. | `PerspectiveV.Primitives/Types/Models/OrderDirection.cs` |
+
+## Selecting a base
+
+Choose an entity base when defining a persistence entity and a model base when defining an application-facing data object. Use a generic variant when the identifier type is not the non-generic `Guid` convention. Select only the concerns a type needs:
+
+| Required shape | Entity | Model |
+| --- | --- | --- |
+| Identifier only | `Entity<TId>` | `Model<TId>` |
+| Name | `NamedEntity<TId>` | `NamedModel<TId>` |
+| Audit fields | `AuditableEntity<TId>` | `AuditableModel<TId>` |
+| Soft-delete flag | `SoftDeletableEntity<TId>` | `SoftDeletableModel<TId>` |
+| Audit and name | `AuditableNamedEntity<TId>` | `AuditableNamedModel<TId>` |
+| Audit and soft delete | `AuditableSoftDeletableEntity<TId>` | `AuditableSoftDeletableModel<TId>` |
+| Name and soft delete | `SoftDeletableNamedEntity<TId>` | `SoftDeletableNamedModel<TId>` |
+| Audit, name, and soft delete | `AuditableSoftDeletableNamedEntity<TId>` | `AuditableSoftDeletableNamedModel<TId>` |
+
+Use the non-generic class name from the same family when the default `Guid` entity identifier or nullable `Guid` model identifier is appropriate. Implement `IAppClient` separately when a type needs `AppClientId`; no provided entity or model base implements it.

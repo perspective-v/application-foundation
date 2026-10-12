@@ -18,7 +18,7 @@ The package versions in the project files describe this source checkout. Confirm
 
 ## v10 migration notes
 
-- Entity/model mapping is standardized around `IProjectionMapper<IdType, EntityType, ModelType>` and Mapperly-generated mapping methods and expressions. The `AddMapperlyMappers(...)` helper currently has an implementation mismatch; see [mapping](/docs/common/mapping) and use explicit registration only after reviewing that limitation.
+- Entity/model mapping is standardized around `IProjectionMapper<IdType, EntityType, ModelType>` and Mapperly-generated mapping methods and expressions. The `AddMapperlyMappers(...)` helper currently has an implementation mismatch; see [mapping](common/mapping) and use explicit registration only after reviewing that limitation.
 - Runtime AutoMapper references are not present in the current project files. Replace prior package-based mapping configuration with the Mapperly-oriented source mapping contract as appropriate for the consuming app.
 - Shared session serialization and API error logging use `System.Text.Json`. The host application still owns its global JSON formatter and serializer settings.
 - The current EF Core repository API is the four-parameter generic interface and implementation. Net6 and Net8 repository compatibility types are marked obsolete; migrate to `IRepositoryAsync<IdType, EntityType, ModelType, DbContextType>`.

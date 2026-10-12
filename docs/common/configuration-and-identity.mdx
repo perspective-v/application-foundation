@@ -18,9 +18,9 @@ The `PerspectiveV.Common.AppConfigurations` namespace contains bindable data mod
 
 The `Emailing` namespace adds `SMTPClientSettings`, `EmailTemplateOptions`, and `EmailTemplate`. `EmailTemplateOptions.GetTemplate(key)` looks up a template by its key; the constants class provides forgot-password, reset-password, and email-verification keys.
 
-<Callout type="warn">
+<Warning>
 These models contain fields intended for credentials and signing secrets. Bind secrets from a protected configuration provider or environment, and do not commit real values in application settings or documentation.
-</Callout>
+</Warning>
 
 ## Claim conventions
 

@@ -19,6 +19,8 @@ The `PerspectiveV.Primitives.Types.Interfaces` namespace contains:
 
 These interfaces describe a contract; they do not add database filters or populate audit fields by themselves. Higher-level repository and controller code may inspect these markers.
 
+See the [complete Primitives API reference](../reference/primitives) for all declared interfaces, inherited properties, and model members.
+
 ## Entity and model bases
 
 The `Types.Entities` and `Types.Models` namespaces provide matching base-class families. Each family has generic and non-generic forms where applicable:
@@ -42,4 +44,4 @@ The non-generic entity base uses a GUID key marked with the standard `Key` and i
 - `NameValuePair<T>` and `KeyValuePair<T>` carry a display name/key and a typed value.
 - `OrderDirection` defines ascending and descending sort values.
 
-For query projection to `NameValuePair<T>`, see [EF Core extensions](/docs/entity-framework). For paging response metadata, see [Common paging](/docs/common/paging).
+For query projection to `NameValuePair<T>`, see [EF Core extensions](../entity-framework). For paging response metadata, see [Common paging](../common/paging).
